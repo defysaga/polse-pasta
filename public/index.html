@@ -1,3 +1,101 @@
-<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pølse &amp; Pasta</title>
-<style>body{font:17px/1.5 system-ui,sans-serif;background:#EDF4EF;color:#1B2822;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}</style></head>
-<body><div><h1 style="color:#D63F2B">Pølse &amp; Pasta</h1><p>Serveren er oppe. Appen kommer om et øyeblikk.</p></div></body></html>
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pølse &amp; Pasta</title>
+<meta name="description" content="Matvideoer, middagslogg og pølsehund-plinger for to.">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pølse&amp;Pasta">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EDF4EF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111915" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<div class="start gut" id="start" hidden><div class="start-in" id="start-in"></div></div>
+
+<div id="app" hidden>
+<header class="top">
+  <div class="gut"><div class="col top-in">
+    <span class="logo-dog" id="logo"></span>
+    <h1 class="wordmark">Pølse <span class="amp">&amp;</span> Pasta</h1>
+    <div class="top-right" id="top-right"></div>
+  </div></div>
+  <div class="gingham" aria-hidden="true"></div>
+</header>
+
+<main class="gut"><div class="col">
+  <div id="invite-slot"></div>
+
+  <section class="view" id="v-inspo" aria-labelledby="h-inspo">
+    <div class="sec-head">
+      <h2 id="h-inspo">Inspo</h2>
+      <button class="btn primary" data-act="add-link">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>Lagre video</button>
+    </div>
+    <p class="sec-sub">TikToks og Reels dere vil lage. Trykk på et kort for å åpne videoen.</p>
+    <div id="inspo-search-wrap" hidden><label class="vh" for="q-inspo">Søk i oppskrifter</label><input id="q-inspo" class="search" type="search" placeholder="Søk i oppskrifter" autocomplete="off"></div>
+    <div class="chips" id="inspo-chips"></div>
+    <div class="chips" id="inspo-tags" hidden></div>
+    <div id="inspo-grid"></div>
+  </section>
+
+  <section class="view" id="v-middager" aria-labelledby="h-middager" hidden>
+    <div class="sec-head">
+      <h2 id="h-middager">Middager</h2>
+      <button class="btn primary" data-act="add-dinner">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>Logg middag</button>
+    </div>
+    <p class="sec-sub">Alt dere har laget, med bilder og hva dere syntes.</p>
+    <div class="stats" id="din-stats" hidden></div>
+    <div class="chips" id="din-chips"></div>
+    <div id="din-list"></div>
+  </section>
+
+  <section class="view" id="v-pling" aria-labelledby="h-pling" hidden>
+    <div class="sec-head">
+      <h2 id="h-pling">Pling</h2>
+    </div>
+    <p class="sec-sub" id="pl-sub"></p>
+    <div id="push-slot"></div>
+    <div class="pgrid" id="pl-grid"></div>
+    <h3 class="sub-h">Siste plinger</h3>
+    <div id="pl-log"></div>
+  </section>
+</div></main>
+
+<nav class="nav" aria-label="Faner">
+  <div class="gut"><div class="col nav-in">
+    <button data-act="tab" data-k="inspo" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>Inspo</button>
+    <button data-act="tab" data-k="middager">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.6 3.5v5a1.9 1.9 0 0 0 1.9 1.9V21M4.5 3.5v4.5M6.4 3.5v5M21.4 3.5c-1.6 1-2.1 3-2.1 6.5h2.1V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Middager</button>
+    <button data-act="tab" data-k="pling">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="16.2" rx="5" ry="4.2" fill="currentColor"/><ellipse cx="5.4" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/><ellipse cx="9.3" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="14.7" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="18.6" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/></svg>Pling<span class="badge" id="pl-badge" hidden></span></button>
+  </div></div>
+</nav>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="scrim" data-act="close-sheet"></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-label="Skjema" tabindex="-1">
+    <div class="grab" aria-hidden="true"></div>
+    <button class="x" data-act="close-sheet" aria-label="Lukk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    <div class="sheet-body"></div>
+  </div>
+</div>
+<div class="ov" id="ov" role="dialog" aria-modal="true" aria-label="Ny pling" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -175,6 +175,7 @@ export class Hjem {
     this.sql.exec("CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, type TEXT, bytes BLOB, created INTEGER)");
     this.sql.exec("CREATE TABLE IF NOT EXISTS subs (endpoint TEXT PRIMARY KEY, member TEXT, p256dh TEXT, auth TEXT, created INTEGER, ua TEXT)");
     this.last = 0;
+    this.fails = new Map();
   }
 
   meta(k) {
@@ -224,7 +225,15 @@ export class Hjem {
       const photo = /^\/api\/photo\/([A-Za-z0-9_-]{10,64})$/.exec(path);
       if (photo && m === "GET") return this.getPhoto(photo[1]);
 
-      if (!(await this.authed(request))) return fail(401, "key", "Feil husnøkkel.");
+      // Maks 30 feil forsøk på husnøkkelen per kvarter fra samme sted
+      const ip = request.headers.get("CF-Connecting-IP") || "lokal";
+      const f = this.fails.get(ip);
+      if (f && f.n >= 30 && Date.now() - f.t < 15 * 60 * 1000) return fail(429, "slow", "For mange feil forsøk. Vent et kvarter og prøv igjen.");
+      if (!(await this.authed(request))) {
+        const fresh = !f || Date.now() - f.t >= 15 * 60 * 1000;
+        this.fails.set(ip, { n: fresh ? 1 : f.n + 1, t: fresh ? Date.now() : f.t });
+        return fail(401, "key", "Feil husnøkkel.");
+      }
 
       if (path === "/api/sync" && m === "GET") return this.sync(Number(url.searchParams.get("since") || 0));
       if (path === "/api/write" && m === "POST") return await this.write(request, url);
