@@ -68,7 +68,9 @@ const PLINGS = {
   natt:      { title: 'God natt', msg: 'Pølsa legger seg nå. Sov godt!', dog: 'natt', emoji: '🌙' },
   egen:      { title: 'Melding', msg: '', dog: 'egen', emoji: '💬', input: 'Skriv noe søtt…', label: 'Melding', custom: true },
   oppskrift: { title: 'Ny oppskrift!', msg: 'Fant noe vi må lage:', dog: 'oppskrift', emoji: '📌', hidden: true },
-  rating:    { title: 'Gi en rating', msg: 'Hva syntes du om middagen?', dog: 'stjerne', emoji: '⭐', hidden: true }
+  rating:    { title: 'Gi en rating', msg: 'Hva syntes du om middagen?', dog: 'stjerne', emoji: '⭐', hidden: true },
+  quiz:      { title: 'Quiz', msg: '', dog: 'quiz', emoji: '❓', hidden: true },
+  spill:     { title: 'Pølsehopp', msg: '', dog: 'stjerne', emoji: '🏆', hidden: true }
 };
 const PLING_ORDER = ['hei', 'sulten', 'klar', 'handle', 'klem', 'kyss', 'natt', 'egen'];
 const KEY_WORDS = ['polse', 'pasta', 'taco', 'sennep', 'ketchup', 'gnocchi', 'pesto', 'lasagne', 'burrito', 'ramen', 'vaffel', 'kanel', 'tomat', 'basilikum', 'parmesan', 'chili', 'risotto', 'falafel', 'pizza', 'nachos', 'kebab', 'sushi', 'lompe', 'brunost'];
@@ -117,6 +119,9 @@ function dog(v, live) {
     case 'oppskrift':
       front = '<g class="float"><path d="M242 20l-6 12 14-10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/><rect x="234" y="-10" width="42" height="32" rx="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/><path d="M249 -1l13 7-13 7z" fill="var(--ketchup)"/></g>';
       break;
+    case 'quiz':
+      front = '<g class="float"><path d="M242 20l-6 12 14-10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/><rect x="234" y="-10" width="42" height="32" rx="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/><text x="255" y="15" text-anchor="middle" class="qmark">?</text></g>';
+      break;
     case 'egen':
       front = '<g class="float"><path d="M242 20l-6 12 14-10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/><rect x="234" y="-10" width="42" height="32" rx="10" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/><circle cx="245" cy="6" r="3" fill="var(--ink)"/><circle cx="255" cy="6" r="3" fill="var(--ink)"/><circle cx="265" cy="6" r="3" fill="var(--ink)"/></g>';
       break;
@@ -149,13 +154,13 @@ function dog(v, live) {
 }
 
 /* ---------- state & local storage ---------- */
-const EMPTY = () => ({ members: {}, links: {}, dinners: {}, plings: {} });
+const EMPTY = () => ({ members: {}, links: {}, dinners: {}, plings: {}, feeds: {}, scores: {}, quiz: {}, settings: {} });
 const S = {
   key: LS.get('pp-key', null), me: LS.get('pp-me', null), vapid: LS.get('pp-vapid', null),
   docs: Object.assign(EMPTY(), LS.get('pp-docs', {})), since: LS.get('pp-since', 0), queue: LS.get('pp-queue', []),
-  members: {}, links: [], dinners: [], plings: [],
+  members: {}, links: [], dinners: [], plings: [], quiz: [],
   stage: 'boot', online: true, synced: false, push: 'unknown',
-  tab: /pling/.test(location.hash) ? 'pling' : 'inspo', lf: 'alle', tagf: null, q: '', ds: 'nyeste',
+  tab: /polsa/.test(location.hash) ? 'polsa' : /pling/.test(location.hash) ? 'pling' : 'inspo', lf: 'alle', tagf: null, q: '', ds: 'nyeste',
   sheet: null, ovId: null, dismissed: new Set(), booted: Date.now(), startErr: '', who: null
 };
 const canW = () => !!(S.key && S.me);
@@ -169,6 +174,7 @@ function derive() {
   S.members = S.docs.members;
   S.links = arr('links').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   S.dinners = arr('dinners');
+  S.quiz = arr('quiz').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   S.plings = arr('plings').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   if (S.plings.length > 300) S.plings.slice(300).forEach(p => { delete S.docs.plings[p.id]; });
   S.plings = S.plings.slice(0, 300);
@@ -412,6 +418,7 @@ function changed() {
   if (S.stage === 'app') {
     render();
     if (S.sheet && S.sheet.type === 'dinner') renderDetail();
+    if (S.sheet && S.sheet.type === 'quiz') renderQuizSheet();
     checkOverlay();
   } else if (S.stage === 'who') renderStart();
 }
@@ -420,7 +427,8 @@ function render() {
   $('#app').hidden = !inApp;
   $('#start').hidden = inApp;
   if (!inApp) { renderStart(); return; }
-  ['inspo', 'middager', 'pling'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
+  ['inspo', 'middager', 'pling', 'polsa'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
+  $('#nav-polsa-l').textContent = pet().name;
   document.querySelectorAll('.nav [data-act="tab"]').forEach(b => {
     if (b.dataset.k === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
@@ -431,6 +439,7 @@ function render() {
     ? '<div class="invite">' + dog('hei') + '<p>Madammen er ikke med ennå. Send henne appen og husnøkkelen.</p><button class="btn sm" data-act="invite">Del appen</button></div>' : '';
   if (S.tab === 'inspo') renderInspo();
   else if (S.tab === 'middager') renderDinners();
+  else if (S.tab === 'polsa') renderPolsa();
   else renderPling();
 }
 
@@ -447,6 +456,8 @@ function unseen() {
 function renderBadge() {
   const n = unseen().length, b = $('#pl-badge');
   b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
+  const pn = polsaBadge(), pb = $('#polsa-badge');
+  pb.hidden = !pn; pb.textContent = pn > 9 ? '9+' : String(pn);
   try { if ('setAppBadge' in navigator) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
 }
 
@@ -484,20 +495,26 @@ function renderInspo() {
   if (q) list = list.filter(l => ((l.title || '') + ' ' + (l.note || '') + ' ' + (l.tags || []).join(' ')).toLowerCase().includes(q));
   if (!list.length) { grid.innerHTML = '<p class="none">Ingen treff. <button class="linkbtn" data-act="clear-f">Vis alle</button></p>'; return; }
   grid.innerHTML = '<div class="rgrid">' + list.map(l => linkCard(l, made[l.id])).join('') + '</div>';
+  backfillPreviews();
 }
 
 function linkCard(l, m) {
   const tile = 't' + (hash(l.id) % 5 + 1);
   const title = l.title || 'Uten navn';
   const tagTxt = (l.tags || []).slice(0, 2).join(', ');
+  const img = (m && m.photo) || l.thumb;
+  const canPlay = !!(l.embed || embedFor(l.url));
   return '<article class="rcard">'
-    + '<a class="rthumb ' + tile + '" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(openLabel(l.platform) + ': ' + title) + '">'
-    + (m && m.photo ? '<img src="' + photoUrl(m.photo) + '" alt="" loading="lazy">' : '<span class="ini" aria-hidden="true">' + esc(title.trim().charAt(0).toUpperCase()) + '</span>')
+    + (canPlay
+      ? '<button class="rthumb ' + tile + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc('Spill av: ' + title) + '">'
+      : '<a class="rthumb ' + tile + '" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(openLabel(l.platform) + ': ' + title) + '">')
+    + (img ? '<img src="' + photoUrl(img) + '" alt="" loading="lazy">' : '<span class="ini" aria-hidden="true">' + esc(title.trim().charAt(0).toUpperCase()) + '</span>')
     + '<span class="plat ' + esc(l.platform) + '">' + platLabel(l.platform) + '</span>'
     + (m ? '<span class="stamp">Laget' + (m.count > 1 ? ' ' + m.count + '×' : '') + (m.avg != null ? ' · ' + fmt1(m.avg) + '★' : '') + '</span>' : '')
-    + '<span class="play">' + ICON.play + '</span></a>'
+    + '<span class="play">' + ICON.play + '</span>' + (canPlay ? '</button>' : '</a>')
     + '<div class="rbody"><h3>' + esc(title) + '</h3>'
     + (l.note ? '<p class="rnote">' + esc(l.note) + '</p>' : '')
+    + (l.author ? '<p class="rauthor">' + esc(l.author) + '</p>' : '')
     + '<div class="rmeta">' + av(l.addedBy, 18) + '<span>' + fmtShort(l.createdAt) + (tagTxt ? ' · ' + esc(tagTxt) : '') + '</span></div>'
     + '<div class="ract"><button class="btn sm" data-act="made" data-id="' + l.id + '">' + (m ? 'Laget igjen' : 'Vi lagde den') + '</button><button class="iconbtn" data-act="edit-link" data-id="' + l.id + '" aria-label="Endre eller slett">' + ICON.more + '</button></div>'
     + '</div></article>';
@@ -760,6 +777,7 @@ function linkSheet(l) {
     + '<h2 class="sh-title">' + (edit ? 'Endre oppskrift' : 'Lagre en video') + '</h2>'
     + (edit ? '' : '<p class="hint">I TikTok eller Instagram: trykk <b>Del</b> → <b>Kopier lenke</b>, og lim inn her.</p>')
     + '<label class="fld"><span>Lenke</span><input class="inp" id="fl-url" name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://www.tiktok.com/@…" value="' + esc(edit ? l.url : '') + '"><em class="detect" id="fl-detect"></em></label>'
+    + '<div id="fl-prev"></div>'
     + '<label class="fld"><span>Hva er det?</span><input class="inp" id="fl-title" name="title" maxlength="80" placeholder="F.eks. Kremet gochujang-pasta" value="' + esc(edit ? l.title : '') + '"></label>'
     + '<label class="fld"><span>Notat <i>(valgfritt)</i></span><textarea class="inp" id="fl-note" name="note" rows="2" maxlength="300" placeholder="F.eks. bytt fløte med kokosmelk">' + esc(edit ? (l.note || '') : '') + '</textarea></label>'
     + '<fieldset class="fld"><legend>Merkelapper</legend><div class="chipset">'
@@ -786,8 +804,10 @@ function updateDetect() {
 async function saveLink(f) {
   const btn = f.querySelector('[type=submit]');
   const id = f.dataset.id || null;
-  const url = extractUrl(f.url.value);
+  let url = extractUrl(f.url.value);
   if (!url) return ferr(f, 'Lim inn lenken til videoen. Den skal starte med https://');
+  const pv = S.sheet && S.sheet.preview && S.sheet.preview.for === url ? S.sheet.preview : null;
+  if (pv && pv.canonical) url = pv.canonical;
   const norm = normUrl(url);
   const dup = S.links.find(l => l.id !== id && normUrl(l.url) === norm);
   if (dup) return ferr(f, 'Denne er allerede lagret som «' + (dup.title || 'uten navn') + '».');
@@ -795,15 +815,17 @@ async function saveLink(f) {
   const title = f.title.value.trim() || ('Oppskrift fra ' + platLabel(platform));
   const note = f.note.value.trim();
   const tags = [...f.querySelectorAll('input[name=tags]:checked')].map(i => i.value);
+  const extra = { embed: (pv && pv.embed) || embedFor(url) || null };
+  if (pv) { extra.previewTried = true; if (pv.photo) extra.thumb = pv.photo; if (pv.author) extra.author = pv.author; }
   busy(btn, true, 'Lagrer…');
   try {
     if (id) {
-      const r = await write([{ op: 'merge', coll: 'links', id, data: { url, platform, title, note, tags } }]);
+      const r = await write([{ op: 'merge', coll: 'links', id, data: Object.assign({ url, platform, title, note, tags }, extra) }]);
       closeSheet(); toast(r.queued ? QUEUED : 'Endringene er lagret');
     } else {
       const newIdv = newId();
       const pl = f.pling && f.pling.checked;
-      const ops = [{ op: 'set', coll: 'links', id: newIdv, data: { url, platform, title, note, tags, addedBy: S.me, createdAt: Date.now() } }];
+      const ops = [{ op: 'set', coll: 'links', id: newIdv, data: Object.assign({ url, platform, title, note, tags, addedBy: S.me, createdAt: Date.now() }, extra) }];
       if (pl) ops.push(plingOp('oppskrift', title, { type: 'link', id: newIdv }));
       S.lf = 'alle'; S.tagf = null; S.tab = 'inspo';
       const r = await write(ops);
@@ -1043,6 +1065,11 @@ function showOverlay(p, more) {
     const d = dinnerById(p.ref.id);
     text = '';
     ref = d ? '<div class="ov-ref"><b>' + esc(d.title) + '</b><button class="btn sm primary" data-act="ov-rate" data-id="' + d.id + '">Gi rating nå</button></div>' : '';
+  } else if (p.ref && p.ref.type === 'quiz') {
+    const q = S.quiz.find(x => x.id === p.ref.id);
+    ref = q ? '<div class="ov-ref"><button class="btn sm primary" data-act="ov-quiz" data-id="' + q.id + '">' + (quizState(q).mine ? 'Svar nå' : 'Se runden') + '</button></div>' : '';
+  } else if (p.ref && p.ref.type === 'game') {
+    ref = '<div class="ov-ref"><button class="btn sm primary" data-act="ov-game">Spill dagens bane</button></div>';
   }
   const ov = $('#ov');
   ov.innerHTML = '<div class="ov-card"><div class="ov-band gingham" aria-hidden="true"></div>'
@@ -1094,6 +1121,334 @@ function ping() {
       o.connect(g); g.connect(actx.destination); o.start(s); o.stop(s + 0.22);
     });
   } catch (e) {}
+}
+
+/* ---------- Pølsa: the shared dachshund ---------- */
+const PET_DEF = { name: 'Pølsa', remind: { on: true, first: '18:00', last: '21:30' } };
+function pet() {
+  const p = S.docs.settings.pet || {};
+  return Object.assign({}, PET_DEF, p, { remind: Object.assign({}, PET_DEF.remind, p.remind || {}) });
+}
+function addDay(s, n) {
+  const d = parseDay(s); d.setDate(d.getDate() + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function streak() {
+  const fed = S.docs.feeds, t = today();
+  let n = 0, d = fed[t] ? t : addDay(t, -1);
+  while (fed[d]) { n++; d = addDay(d, -1); }
+  let best = 0, run = 0, prev = null;
+  Object.keys(fed).sort().forEach(k => { run = prev && addDay(prev, 1) === k ? run + 1 : 1; best = Math.max(best, run); prev = k; });
+  return { n, best, today: fed[t] || null };
+}
+const hm = ts => new Date(ts).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+const fmtTime = t => String(t).replace(':', '.');
+const dagerTxt = n => n === 1 ? 'dag' : 'dager';
+function polsaBadge() {
+  const turns = S.quiz.filter(q => quizState(q).mine).length;
+  return turns + (streak().today ? 0 : 1);
+}
+function renderPolsa() {
+  const p = pet(), s = streak(), name = esc(p.name);
+  $('#h-polsa').textContent = p.name;
+  const hr = new Date().getHours();
+  const fresh = S.justFed && Date.now() - S.justFed < 8000;
+  const v = !s.today ? 'sulten' : fresh ? 'klem' : (hr >= 22 || hr < 6) ? 'natt' : 'hei';
+  let status;
+  if (!s.today) status = '<b>' + name + ' er sulten.</b> Ingen har gitt mat i dag.' + (s.n ? ' Streaken på ' + s.n + ' ' + dagerTxt(s.n) + ' står på spill.' : '');
+  else {
+    const treats = Object.values(s.today.treats || {}).reduce((a, b) => a + b, 0);
+    status = '<b>Mett og fornøyd!</b> ' + esc(s.today.by === S.me ? 'Du' : nm(s.today.by)) + ' ga ' + name + ' mat kl. ' + hm(s.today.at) + '.'
+      + (treats ? ' Pluss ' + treats + (treats === 1 ? ' godbit' : ' godbiter') + ' i dag.' : '');
+  }
+  const myTreats = s.today ? ((s.today.treats || {})[S.me] || 0) : 0;
+  const btn = !s.today
+    ? '<button class="btn primary big" data-act="feed">Gi ' + name + ' mat</button>'
+    : '<button class="btn big" data-act="treat"' + (myTreats >= 5 ? ' disabled' : '') + '>' + (myTreats >= 5 ? name + ' er stappmett' : 'Gi en godbit') + '</button>';
+  let days = '';
+  for (let i = 13; i >= 0; i--) {
+    const d = addDay(today(), -i), f = S.docs.feeds[d];
+    const wd = parseDay(d).toLocaleDateString('nb-NO', { weekday: 'short' }).charAt(0).toUpperCase();
+    days += '<li class="' + (f ? 'fed' : '') + (i === 0 ? ' today' : '') + '" title="' + esc(fmtDay(d) + (f ? ': ' + nm(f.by) : ': ingen mat')) + '"><i>' + (f ? esc((nm(f.by) || '?').charAt(0).toUpperCase()) : '') + '</i><span>' + wd + '</span></li>';
+  }
+  const r = p.remind;
+  $('#pet-slot').innerHTML = '<div class="petcard">'
+    + '<div class="pet-dog">' + dog(v, true) + '</div>'
+    + '<p class="pet-status">' + status + '</p>' + btn
+    + '<div class="streak"><div><b>' + s.n + '</b><span>' + dagerTxt(s.n) + ' på rad</span></div><div><b>' + s.best + '</b><span>beste streak</span></div></div>'
+    + '<ol class="days" aria-label="Hvem som ga mat de siste 14 dagene">' + days + '</ol>'
+    + '<p class="small">' + (r.on ? 'Varsel kl. ' + fmtTime(r.first) + (r.last !== r.first ? ' og ' + fmtTime(r.last) : '') + ' hvis ingen har gitt mat.' : 'Påminnelser er av.') + ' <button class="linkbtn" data-act="pet-settings">Endre</button></p>'
+    + '</div>';
+  renderGameCard();
+  renderQuizCard();
+}
+function petSheet() {
+  const p = pet(), r = p.remind;
+  const slots = (from, to) => { const o = []; for (let m = from * 60; m <= to * 60 + 30; m += 30) o.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + (m % 60 ? '30' : '00')); return o; };
+  const sel = (id, val, list) => '<select class="inp" id="fp-' + id + '" name="' + id + '">' + list.map(t => '<option value="' + t + '"' + (t === val ? ' selected' : '') + '>' + fmtTime(t) + '</option>').join('') + '</select>';
+  return '<form class="form" id="f-pet" novalidate><h2 class="sh-title">' + esc(p.name) + '</h2>'
+    + '<label class="fld"><span>Navnet på hunden</span><input class="inp" id="fp-name" name="pname" maxlength="20" value="' + esc(p.name) + '"></label>'
+    + '<label class="toggle"><input type="checkbox" id="fp-on" name="on"' + (r.on ? ' checked' : '') + '><span>Minn oss på det hvis ingen har gitt mat</span></label>'
+    + '<div class="two"><label class="fld"><span>Første påminnelse</span>' + sel('first', r.first, slots(8, 21)) + '</label><label class="fld"><span>Siste sjanse</span>' + sel('last', r.last, slots(12, 23)) + '</label></div>'
+    + '<p class="small">Påminnelsen går til alle telefoner som har slått på varsler.</p><p class="err" hidden></p>'
+    + '<button class="btn primary big" type="submit">Lagre</button></form>';
+}
+function afterFeed() { setTimeout(() => { if (S.tab === 'polsa' && S.stage === 'app') renderPolsa(); }, 8200); }
+
+/* ---------- Pølsehopp ---------- */
+const scoreOf = (date, uid) => (S.docs.scores[date + '_' + uid] || {}).best || 0;
+function records() {
+  const best = {};
+  Object.values(S.docs.scores).forEach(x => { if (x && x.uid && (!best[x.uid] || x.best > best[x.uid].best)) best[x.uid] = x; });
+  return best;
+}
+function boardRows(ids, withRecord) {
+  const t = today(), rec = records();
+  return ids.map(id => '<li>' + av(id, 24) + '<span>' + esc(id === S.me ? 'Du' : nm(id)) + '</span><b>' + (scoreOf(t, id) || '–') + '</b>'
+    + (withRecord && rec[id] ? '<small>Rekord ' + rec[id].best + ' (' + esc(fmtShort(parseDay(rec[id].date) || Date.now())) + ')</small>' : '') + '</li>').join('');
+}
+function renderGameCard() {
+  const t = today(), ids = memberIds();
+  const sc = ids.map(id => [id, scoreOf(t, id)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+  const lead = !sc.length ? 'Ingen har spilt dagens bane ennå.' : sc[0][0] === S.me ? 'Du leder i dag!' : esc(nm(sc[0][0])) + ' leder i dag.';
+  $('#game-slot').innerHTML = '<div class="funcard"><div class="fc-head"><div><h3>Pølsehopp</h3><p class="small">Samme bane for dere begge i dag. ' + lead + '</p></div><div class="fc-art">' + dog('hei') + '</div></div>'
+    + '<ul class="board">' + boardRows(ids, true) + '</ul><button class="btn primary big" data-act="play-game">Spill dagens bane</button></div>';
+}
+function openGame() {
+  if (!window.PolseHopp) return toast('Spillet lastet ikke. Prøv å åpne appen på nytt.');
+  document.body.classList.add('locked');
+  S.game = window.PolseHopp.open($('#game'), {
+    seed: 'polsehopp-' + today(),
+    sub: 'Dagens bane · ' + esc(fmtDay(today())),
+    startHtml: '<div class="g-card"><h3>Dagens bane</h3><p>Trykk for å hoppe, og hold inne for å hoppe høyere. Samle pølser for ekstra poeng.</p><p><b>Pass på fuglene:</b> de flyr akkurat der du hopper, så bli på bakken når de kommer.</p><button class="btn primary big" data-g="start">Start</button></div>',
+    onOver: saveScore,
+    renderOver: overHtml,
+    onClose: () => { document.body.classList.remove('locked'); S.game = null; if (S.tab === 'polsa') renderPolsa(); }
+  });
+}
+function saveScore(r) {
+  const t = today(), id = t + '_' + S.me, prev = S.docs.scores[id] || {};
+  const best = Math.max(prev.best || 0, r.score);
+  const pid = partnerId(), pBest = pid ? scoreOf(t, pid) : 0;
+  r.newBest = r.score > (prev.best || 0); r.prevBest = prev.best || 0;
+  const ops = [{ op: 'set', coll: 'scores', id, data: { date: t, uid: S.me, best, plays: (prev.plays || 0) + 1, last: r.score, at: Date.now() } }];
+  if (pid && r.score > 0 && r.score === best && best > pBest && (prev.best || 0) <= pBest) {
+    const txt = pBest ? nm(S.me) + ' slo deg i Pølsehopp med ' + r.score + ' poeng. Klarer du å slå det?' : nm(S.me) + ' satte dagens rekord i Pølsehopp: ' + r.score + ' poeng. Din tur!';
+    ops.push(plingOp('spill', txt, { type: 'game' }));
+    r.plinged = true; r.partnerHad = pBest;
+  }
+  write(ops).catch(() => {});
+}
+function overHtml(r) {
+  const pid = partnerId();
+  let msg = r.newBest && r.prevBest ? 'Ny personlig rekord i dag!' : '';
+  if (r.plinged) msg = (r.partnerHad ? 'Du tok ledelsen! ' : 'Dagens rekord! ') + esc(partnerName()) + ' har fått beskjed.';
+  return '<div class="g-card"><p class="g-hit">Au! ' + esc(pet().name) + ' traff ' + esc(r.hit || 'noe') + '.</p><b class="g-big">' + r.score + '</b>'
+    + '<p class="small">' + r.sausages + (r.sausages === 1 ? ' pølse' : ' pølser') + ' · ' + Math.round(r.distance / 10) + ' meter</p>'
+    + (msg ? '<p class="g-msg">' + msg + '</p>' : '')
+    + '<ul class="board">' + boardRows([S.me, pid].filter(Boolean), false) + '</ul>'
+    + '<div class="sh-actions"><button class="btn ghost grow" data-g="close">Ferdig</button><button class="btn primary grow" data-g="again">Prøv igjen</button></div></div>';
+}
+
+/* ---------- Couple quiz ---------- */
+const QMODES = { hvem: 'Hvem av oss?', meg: 'Kjenner du meg?', egen: 'Eget spørsmål' };
+const QPOINTS = { riktig: 2, nesten: 1, feil: 0 };
+const VERDICT_TXT = { riktig: 'Riktig! 2 poeng', nesten: 'Nesten! 1 poeng', feil: 'Feil denne gangen' };
+const guesser = q => memberIds().find(id => id !== q.subject) || null;
+const hvemAgree = q => { const v = Object.values(q.answers || {}); return v.length >= 2 && v.every(x => x === v[0]); };
+function quizState(q) {
+  const ids = memberIds();
+  if (q.mode === 'hvem') {
+    const a = q.answers || {};
+    const done = ids.length >= 2 && ids.every(id => a[id]);
+    return { done, mine: !a[S.me], wait: done ? null : ids.find(id => !a[id] && id !== S.me) || ids.find(id => !a[id]) };
+  }
+  if (!q.guess) return { done: false, mine: S.me !== q.subject, wait: guesser(q) };
+  if (!q.verdict) return { done: false, mine: S.me === q.subject, wait: q.subject };
+  return { done: true, mine: false };
+}
+function quizStats() {
+  const pts = {}; memberIds().forEach(i => { pts[i] = { got: 0, of: 0 }; });
+  let agree = 0, hv = 0;
+  S.quiz.forEach(q => {
+    if (!quizState(q).done) return;
+    if (q.mode === 'hvem') { hv++; if (hvemAgree(q)) agree++; }
+    else { const g = q.guess && q.guess.by; if (pts[g]) { pts[g].got += QPOINTS[q.verdict] || 0; pts[g].of += 2; } }
+  });
+  return { pts, agree, hv };
+}
+function qTag(q) {
+  const st = quizState(q);
+  if (st.done) return q.mode === 'hvem' ? (hvemAgree(q) ? 'Enige' : 'Uenige') : ({ riktig: 'Riktig', nesten: 'Nesten', feil: 'Feil' }[q.verdict] || 'Ferdig');
+  return st.mine ? 'Din tur' : 'Venter på ' + nm(st.wait);
+}
+function qRow(q) {
+  const st = quizState(q);
+  return '<li><button class="qrow" data-act="quiz-open" data-id="' + q.id + '"><span class="qmode">' + QMODES[q.mode] + (q.mode !== 'hvem' ? ' · fra ' + esc(q.subject === S.me ? 'deg' : nm(q.subject)) : '') + '</span>'
+    + '<span class="qq">' + esc(q.q) + '</span><span class="chipx' + (st.mine ? ' hot' : '') + '">' + esc(qTag(q)) + '</span></button></li>';
+}
+function renderQuizCard() {
+  const pid = partnerId();
+  let h = '<div class="funcard"><div class="fc-head"><div><h3>Couple quiz</h3>';
+  if (!pid) {
+    h += '<p class="small">Quizen åpner når kjæresten er med i appen.</p></div><div class="fc-art">' + dog('quiz') + '</div></div></div>';
+    $('#quiz-slot').innerHTML = h; return;
+  }
+  const st = quizStats(), line = [];
+  if (st.pts[S.me] && st.pts[S.me].of) line.push('Du kjenner ' + esc(nm(pid)) + ': ' + st.pts[S.me].got + ' poeng');
+  if (st.pts[pid] && st.pts[pid].of) line.push(esc(nm(pid)) + ' kjenner deg: ' + st.pts[pid].got + ' poeng');
+  if (st.hv) line.push('Enige i ' + st.agree + ' av ' + st.hv);
+  const mine = S.quiz.filter(q => quizState(q).mine);
+  h += '<p class="small">' + (line.length ? line.join(' · ') : 'Hvor godt kjenner dere hverandre? Start en runde.') + '</p></div><div class="fc-art">' + dog('quiz') + '</div></div>'
+    + (mine.length ? '<ul class="qlist">' + mine.slice(0, 4).map(qRow).join('') + '</ul>' : '')
+    + '<div class="qbtns"><button class="btn" data-act="quiz-new" data-k="hvem">Hvem av oss?</button><button class="btn" data-act="quiz-new" data-k="meg">Kjenner du meg?</button><button class="btn" data-act="quiz-new" data-k="egen">Eget spørsmål</button></div>'
+    + (S.quiz.length ? '<button class="linkbtn qall" data-act="quiz-all">Se alle runder (' + S.quiz.length + ')</button>' : '')
+    + '</div>';
+  $('#quiz-slot').innerHTML = h;
+}
+function pickQ(mode, avoid) {
+  const bank = (window.QUIZ && window.QUIZ[mode]) || ['Hvem av oss er best til å lage mat?'];
+  const used = new Set(S.quiz.filter(q => q.mode === mode).map(q => q.q));
+  let pool = bank.filter(x => !used.has(x) && x !== avoid);
+  if (!pool.length) pool = bank.filter(x => x !== avoid);
+  return pool[Math.floor(Math.random() * pool.length)] || bank[0];
+}
+function whoButtons(act) {
+  return memberIds().slice(0, 2).map(id => '<button type="button" class="who-btn" data-act="' + act + '" data-id="' + id + '">' + av(id, 34) + esc(nm(id)) + (id === S.me ? ' <small>(deg)</small>' : '') + '</button>').join('');
+}
+function quizNewSheet(mode, q) {
+  const other = esc(partnerName());
+  let h = '<form class="form" id="f-quiz" data-mode="' + mode + '" novalidate><p class="qmode">' + QMODES[mode] + '</p>';
+  if (mode === 'egen') {
+    h += '<h2 class="sh-title">Lag et spørsmål om deg selv</h2>'
+      + '<label class="fld"><span>Spørsmålet</span><input class="inp" id="fq-q" name="q" maxlength="140" placeholder="F.eks. Hva bestilte jeg på første date?"></label>'
+      + '<label class="fld"><span>Riktig svar</span><input class="inp" id="fq-a" name="a" maxlength="80" autocomplete="off"></label>'
+      + '<fieldset class="fld"><legend>Feil svaralternativer <i>(valgfritt, ellers skriver ' + other + ' svaret selv)</i></legend>'
+      + '<div class="stack"><input class="inp" id="fq-w1" name="w1" maxlength="80" placeholder="Feil svar" autocomplete="off"><input class="inp" id="fq-w2" name="w2" maxlength="80" placeholder="Feil svar" autocomplete="off"><input class="inp" id="fq-w3" name="w3" maxlength="80" placeholder="Feil svar" autocomplete="off"></div></fieldset>';
+  } else {
+    h += '<h2 class="sh-title" id="fq-qtext">' + esc(q) + '</h2><input type="hidden" id="fq-q" name="q" value="' + esc(q) + '">'
+      + '<div><button type="button" class="linkbtn" data-act="quiz-shuffle" data-k="' + mode + '">Bytt spørsmål</button></div>';
+    if (mode === 'hvem') h += '<p class="muted">Svar selv først. Så får ' + other + ' samme spørsmål, og dere ser om dere er enige.</p><div class="who2">' + whoButtons('fq-pick') + '</div>';
+    else h += '<label class="fld"><span>Ditt svar <i>(' + other + ' ser det først etter å ha gjettet)</i></span><input class="inp" id="fq-a" name="a" maxlength="120" autocomplete="off"></label>';
+  }
+  h += '<p class="err" hidden></p>' + (mode === 'hvem' ? '' : '<button class="btn primary big" type="submit">Send til ' + other + '</button>') + '</form>';
+  return h;
+}
+function quizSheet(q) {
+  const st = quizState(q), a = q.answers || {};
+  let h = '<div class="form"><p class="qmode">' + QMODES[q.mode] + (q.mode !== 'hvem' ? ' · fra ' + esc(q.subject === S.me ? 'deg' : nm(q.subject)) : '') + '</p><h2 class="sh-title">' + esc(q.q) + '</h2>';
+  if (q.mode === 'hvem') {
+    if (!a[S.me]) h += '<div class="who2">' + whoButtons('qa-pick') + '</div>';
+    else if (!st.done) h += '<p class="muted">Du svarte <b>' + esc(nm(a[S.me])) + '</b>. Venter på ' + esc(nm(st.wait)) + '.</p>';
+    else {
+      const ok = hvemAgree(q);
+      h += '<div class="reveal' + (ok ? ' ok' : '') + '"><b class="verdict">' + (ok ? 'Dere er enige!' : 'Dere er uenige') + '</b>'
+        + memberIds().map(id => '<p>' + esc(id === S.me ? 'Du' : nm(id)) + ' svarte <b>' + esc(nm(a[id])) + '</b></p>').join('') + '</div>';
+    }
+  } else {
+    const me = q.subject === S.me;
+    const right = q.options ? q.options[q.correct] : q.answer;
+    if (!q.guess) {
+      if (me) h += '<p class="muted">Riktig svar: <b>' + esc(right) + '</b>. Venter på at ' + esc(nm(guesser(q))) + ' gjetter.</p>';
+      else if (q.options && q.options.length) h += '<div class="opts">' + q.options.map((o, i) => '<button class="opt" data-act="qa-opt" data-i="' + i + '">' + esc(o) + '</button>').join('') + '</div>';
+      else h += '<form class="form" id="f-guess" novalidate><label class="fld"><span>Ditt gjett</span><input class="inp" id="fg-text" name="g" maxlength="120" autocomplete="off"></label><p class="err" hidden></p><button class="btn primary big" type="submit">Svar</button></form>';
+    } else {
+      const gText = q.options ? q.options[q.guess.pick] : q.guess.text;
+      h += '<div class="reveal' + (q.verdict === 'riktig' ? ' ok' : q.verdict === 'feil' ? ' bad' : '') + '">'
+        + '<p>' + esc(q.guess.by === S.me ? 'Du' : nm(q.guess.by)) + ' gjettet: <b>' + esc(gText) + '</b></p><p>Riktig svar: <b>' + esc(right) + '</b></p>'
+        + (q.verdict ? '<b class="verdict">' + VERDICT_TXT[q.verdict] + '</b>' : '') + '</div>';
+      if (!q.verdict) {
+        if (me) h += '<p class="muted">Var det riktig?</p><div class="verdicts"><button class="btn primary" data-act="qa-verdict" data-v="riktig">Riktig</button><button class="btn" data-act="qa-verdict" data-v="nesten">Nesten</button><button class="btn ghost" data-act="qa-verdict" data-v="feil">Feil</button></div>';
+        else h += '<p class="muted">Venter på at ' + esc(nm(q.subject)) + ' sier om det var riktig.</p>';
+      }
+    }
+  }
+  h += '<div class="sh-actions"><button class="btn ghost danger sm" data-act="quiz-del-ask">Slett runden</button></div>'
+    + (S.sheet && S.sheet.confirm === 'del' ? '<div class="confirm"><p>Slette denne runden?</p><div><button class="btn primary" data-act="quiz-del-yes">Ja, slett</button><button class="btn ghost" data-act="quiz-del-no">Avbryt</button></div></div>' : '');
+  return h + '</div>';
+}
+function openQuiz(id) {
+  const q = S.quiz.find(x => x.id === id); if (!q) return toast('Fant ikke runden');
+  openSheet(quizSheet(q), { type: 'quiz', id }, 'Quiz');
+}
+function renderQuizSheet(force) {
+  const st = S.sheet; if (!st || st.type !== 'quiz') return;
+  const q = S.quiz.find(x => x.id === st.id);
+  if (!q) { closeSheet(); return; }
+  const sh = $('#sheet'), ae = document.activeElement;
+  if (!force && ae && sh.contains(ae) && /^(INPUT|TEXTAREA)$/.test(ae.tagName)) { st.stale = true; return; }
+  $('.sheet-body', sh).innerHTML = quizSheet(q); st.stale = false;
+}
+function quizAllSheet() {
+  return '<div class="form"><h2 class="sh-title">Alle quizrunder</h2><ul class="qlist">' + S.quiz.map(qRow).join('') + '</ul></div>';
+}
+async function quizWrite(ops, okMsg) {
+  try { const r = await write(ops); toast(r.queued ? QUEUED : okMsg); return true; }
+  catch (e) { toast(errMsg(e)); return false; }
+}
+
+/* ---------- video previews ---------- */
+function embedFor(url) {
+  const t = /tiktok\.com\/.*\/video\/(\d{6,25})/.exec(url || '');
+  if (t) return 'https://www.tiktok.com/embed/v2/' + t[1];
+  const i = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]{5,40})/.exec(url || '');
+  if (i) return 'https://www.instagram.com/' + (i[1] === 'p' ? 'p' : i[1] === 'tv' ? 'tv' : 'reel') + '/' + i[2] + '/embed';
+  return null;
+}
+function cleanTitle(t) {
+  t = String(t || '').replace(/#[\p{L}\p{N}_]+/gu, '').replace(/\s+/g, ' ').trim().replace(/[\s,.:;!-]+$/, '');
+  if (t.length > 70) { t = t.slice(0, 70); const k = t.lastIndexOf(' '); if (k > 40) t = t.slice(0, k); t += '…'; }
+  return t;
+}
+let prevT = null, prevSeq = 0;
+function schedulePreview() {
+  clearTimeout(prevT);
+  const box = $('#fl-prev'); if (!box || !S.sheet) return;
+  const u = extractUrl(($('#fl-url') || {}).value);
+  const p = u && detect(u);
+  if (!p || (p !== 'tiktok' && p !== 'instagram')) { box.innerHTML = ''; S.sheet.preview = null; return; }
+  if (S.sheet.preview && S.sheet.preview.for === u) return;
+  box.innerHTML = '<p class="small">Henter forhåndsvisning…</p>';
+  const seq = ++prevSeq, st = S.sheet;
+  prevT = setTimeout(async () => {
+    try {
+      const r = await api('/api/preview?url=' + encodeURIComponent(u));
+      if (seq !== prevSeq || S.sheet !== st) return;
+      r.for = u; st.preview = r;
+      if (!r.found) { box.innerHTML = '<p class="small">Fant ingen forhåndsvisning. Lenken lagres likevel.</p>'; return; }
+      box.innerHTML = '<div class="prevbox">' + (r.photo ? '<img src="' + photoUrl(r.photo) + '" alt="">' : '') + '<div>' + (r.author ? '<b>' + esc(r.author) + '</b>' : '') + '<span>' + esc(cleanTitle(r.title) || platLabel(p)) + '</span></div></div>';
+      const ti = $('#fl-title');
+      if (ti && !ti.value.trim() && cleanTitle(r.title)) ti.value = cleanTitle(r.title);
+    } catch (e) {
+      if (seq === prevSeq && S.sheet === st) box.innerHTML = e.code === 'offline' ? '' : '<p class="small">Fant ingen forhåndsvisning. Lenken lagres likevel.</p>';
+    }
+  }, 500);
+}
+let backfilling = false;
+const triedPreview = new Set();
+async function backfillPreviews() {
+  if (backfilling || !S.online || !S.key) return;
+  const l = S.links.find(x => (x.platform === 'tiktok' || x.platform === 'instagram') && !x.thumb && !x.previewTried && !triedPreview.has(x.id));
+  if (!l) return;
+  backfilling = true; triedPreview.add(l.id);
+  try {
+    const r = await api('/api/preview?url=' + encodeURIComponent(l.url));
+    const data = { previewTried: true };
+    if (r.photo) data.thumb = r.photo;
+    if (r.author) data.author = r.author;
+    if (r.embed) data.embed = r.embed;
+    if (/^Oppskrift fra /.test(l.title || '') && cleanTitle(r.title)) data.title = cleanTitle(r.title);
+    await write([{ op: 'merge', coll: 'links', id: l.id, data }]);
+  } catch (e) {}
+  backfilling = false;
+  setTimeout(backfillPreviews, 1200);
+}
+function playSheet(l) {
+  const e = l.embed || embedFor(l.url);
+  return '<div class="form"><h2 class="sh-title">' + esc(l.title) + '</h2>' + (l.author ? '<p class="small">' + esc(l.author) + ' på ' + platLabel(l.platform) + '</p>' : '')
+    + '<div class="vwrap ' + esc(l.platform) + '"><iframe src="' + esc(e) + '" title="' + esc(l.title) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>'
+    + '<div class="sh-actions"><a class="btn grow" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer">' + openLabel(l.platform) + ICON.ext + '</a>'
+    + '<button class="btn primary grow" data-act="made" data-id="' + l.id + '">' + (madeMap()[l.id] ? 'Laget igjen' : 'Vi lagde den') + '</button></div></div>';
 }
 
 /* ---------- events ---------- */
@@ -1198,6 +1553,78 @@ const ACT = {
     closeOverlay(false);
   },
   'ov-rate': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'middager'; render(); openDinner(id); },
+  'ov-quiz': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'polsa'; render(); openQuiz(id); },
+  'ov-game': () => { closeOverlay(false); S.tab = 'polsa'; render(); openGame(); },
+  'feed': async () => {
+    const t = today();
+    if (S.docs.feeds[t]) return renderPolsa();
+    S.justFed = Date.now();
+    try { const r = await write([{ op: 'set', coll: 'feeds', id: t, data: { by: S.me, at: Date.now(), treats: {} } }]); toast(r.queued ? QUEUED : 'Nam! ' + pet().name + ' er mett.'); }
+    catch (e) { toast(errMsg(e)); }
+    afterFeed();
+  },
+  'treat': async () => {
+    const t = today(), f = S.docs.feeds[t]; if (!f) return;
+    const n = ((f.treats || {})[S.me] || 0) + 1; if (n > 5) return;
+    S.justFed = Date.now();
+    write([{ op: 'merge', coll: 'feeds', id: t, data: { treats: { [S.me]: n } } }]).catch(e => toast(errMsg(e)));
+    toast(['Voff!', 'Logrelogre!', 'Nam nam!', pet().name + ' elsker deg!', pet().name + ' er stappmett nå.'][n - 1]);
+    afterFeed();
+  },
+  'pet-settings': () => openSheet(petSheet(), { type: 'pet' }, 'Hunden'),
+  'play-game': () => openGame(),
+  'play': b => { const l = linkById(b.dataset.id); if (l) openSheet(playSheet(l), { type: 'play', id: l.id }, l.title); },
+  'quiz-new': b => {
+    const mode = b.dataset.k;
+    openSheet(quizNewSheet(mode, mode === 'egen' ? '' : pickQ(mode)), { type: 'quiz-new', mode }, QMODES[mode]);
+  },
+  'quiz-shuffle': b => {
+    const cur = ($('#fq-q') || {}).value, q = pickQ(b.dataset.k, cur);
+    $('#fq-q').value = q; $('#fq-qtext').textContent = q;
+  },
+  'fq-pick': async b => {
+    const q = ($('#fq-q') || {}).value; if (!q) return;
+    const id = newId();
+    const ok = await quizWrite([
+      { op: 'set', coll: 'quiz', id, data: { mode: 'hvem', q, by: S.me, createdAt: Date.now(), answers: { [S.me]: b.dataset.id } } },
+      plingOp('quiz', q, { type: 'quiz', id })
+    ], 'Sendt! Nå er det ' + partnerName() + ' sin tur.');
+    if (ok) closeSheet();
+  },
+  'qa-pick': async b => {
+    const q = S.quiz.find(x => x.id === S.sheet.id); if (!q) return;
+    const others = memberIds().filter(id => id !== S.me && (q.answers || {})[id]);
+    const ops = [{ op: 'merge', coll: 'quiz', id: q.id, data: { answers: { [S.me]: b.dataset.id } } }];
+    if (others.length) {
+      const agree = (q.answers || {})[others[0]] === b.dataset.id;
+      ops.push(plingOp('quiz', 'Fasit: ' + (agree ? 'dere er enige!' : 'dere er uenige.') + ' «' + q.q + '»', { type: 'quiz', id: q.id }));
+    }
+    await quizWrite(ops, others.length ? 'Svaret er sendt' : 'Svaret er lagret');
+    renderQuizSheet(true);
+  },
+  'qa-opt': async b => {
+    const q = S.quiz.find(x => x.id === S.sheet.id); if (!q || q.guess) return;
+    const pick = +b.dataset.i, verdict = pick === q.correct ? 'riktig' : 'feil';
+    await quizWrite([
+      { op: 'merge', coll: 'quiz', id: q.id, data: { guess: { by: S.me, pick, at: Date.now() }, verdict } },
+      plingOp('quiz', nm(S.me) + ' svarte ' + (verdict === 'riktig' ? 'riktig' : 'feil') + ' på «' + q.q + '»', { type: 'quiz', id: q.id })
+    ], verdict === 'riktig' ? 'Riktig! 2 poeng' : 'Feil denne gangen');
+    renderQuizSheet(true);
+  },
+  'qa-verdict': async b => {
+    const q = S.quiz.find(x => x.id === S.sheet.id); if (!q || !q.guess) return;
+    const v = b.dataset.v;
+    await quizWrite([
+      { op: 'merge', coll: 'quiz', id: q.id, data: { verdict: v } },
+      plingOp('quiz', 'Fasit på «' + q.q + '»: ' + VERDICT_TXT[v].toLowerCase(), { type: 'quiz', id: q.id })
+    ], 'Lagret');
+    renderQuizSheet(true);
+  },
+  'quiz-open': b => openQuiz(b.dataset.id),
+  'quiz-all': () => openSheet(quizAllSheet(), { type: 'quiz-all' }, 'Quizrunder'),
+  'quiz-del-ask': () => { if (S.sheet) { S.sheet.confirm = 'del'; renderQuizSheet(true); } },
+  'quiz-del-no': () => { if (S.sheet) { S.sheet.confirm = null; renderQuizSheet(true); } },
+  'quiz-del-yes': async () => { const id = S.sheet && S.sheet.id; if (!id) return; if (await quizWrite([{ op: 'delete', coll: 'quiz', id }], 'Runden er slettet')) closeSheet(); },
   'skip-install': () => { LS.set('pp-skip-install', true); startFlow(); },
   'retry-start': () => startFlow(),
   'who-new': () => { S.who = 'new'; S.startErr = ''; renderStart(); },
@@ -1237,6 +1664,35 @@ document.addEventListener('submit', async e => {
     write([{ op: 'merge', coll: 'dinners', id, data: { title, madeOn } }])
       .then(() => { toast('Lagret'); if (S.sheet) S.sheet.openMore = false; renderDetail(true); })
       .catch(err => ferr(f, errMsg(err)));
+  } else if (f.id === 'f-pet') {
+    const name = f.pname.value.trim().slice(0, 20) || 'Pølsa';
+    let first = f.first.value, last = f.last.value;
+    if (last < first) { const x = first; first = last; last = x; }
+    try { const r = await write([{ op: 'merge', coll: 'settings', id: 'pet', data: { name, remind: { on: f.on.checked, first, last } } }]); toast(r.queued ? QUEUED : 'Lagret'); closeSheet(); }
+    catch (err) { ferr(f, errMsg(err)); }
+  } else if (f.id === 'f-quiz') {
+    const mode = f.dataset.mode, q = f.q.value.trim(), a = f.a ? f.a.value.trim() : '';
+    if (!q) return ferr(f, 'Skriv et spørsmål først.');
+    if (!a) return ferr(f, 'Skriv det riktige svaret, så kan appen vise fasiten etterpå.');
+    const id = newId(), data = { mode, q: q.slice(0, 140), by: S.me, subject: S.me, createdAt: Date.now() };
+    const wrong = mode === 'egen' ? ['w1', 'w2', 'w3'].map(k => f[k].value.trim()).filter(Boolean) : [];
+    if (wrong.length) {
+      const opts = [a, ...wrong].map(x => x.slice(0, 80));
+      for (let i = opts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [opts[i], opts[j]] = [opts[j], opts[i]]; }
+      data.options = opts; data.correct = opts.indexOf(a.slice(0, 80));
+    } else data.answer = a.slice(0, 120);
+    const btn = f.querySelector('[type=submit]'); busy(btn, true, 'Sender…');
+    const ok = await quizWrite([{ op: 'set', coll: 'quiz', id, data }, plingOp('quiz', q, { type: 'quiz', id })], 'Sendt til ' + partnerName() + '!');
+    if (ok) closeSheet(); else busy(btn, false);
+  } else if (f.id === 'f-guess') {
+    const q = S.quiz.find(x => x.id === (S.sheet && S.sheet.id)), g = f.g.value.trim();
+    if (!q) return;
+    if (!g) return ferr(f, 'Skriv et gjett først.');
+    await quizWrite([
+      { op: 'merge', coll: 'quiz', id: q.id, data: { guess: { by: S.me, text: g.slice(0, 120), at: Date.now() } } },
+      plingOp('quiz', nm(S.me) + ' har gjettet på «' + q.q + '». Var det riktig?', { type: 'quiz', id: q.id })
+    ], 'Svaret er sendt');
+    renderQuizSheet(true);
   } else if (f.id === 'f-claim') {
     const btn = f.querySelector('[type=submit]'), key = f.key.value.trim();
     S.keyDraft = key;
@@ -1287,6 +1743,7 @@ document.addEventListener('input', e => {
     const u = extractUrl(t.value);
     if (u && /\s/.test(t.value.trim())) t.value = u;
     updateDetect();
+    schedulePreview();
   } else if (t.id === 'dd-comment' && S.sheet) {
     S.sheet.draft = t.value;
     const d = dinnerById(S.sheet.id);
@@ -1335,7 +1792,7 @@ document.addEventListener('change', async e => {
     setMyRating(t.dataset.id, { again: t.value });
   }
 });
-document.addEventListener('focusout', () => { setTimeout(() => { if (S.sheet && S.sheet.stale) renderDetail(); }, 50); });
+document.addEventListener('focusout', () => { setTimeout(() => { if (S.sheet && S.sheet.stale) { if (S.sheet.type === 'quiz') renderQuizSheet(); else renderDetail(); } }, 50); });
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (S.ovId) closeOverlay(false);
@@ -1351,13 +1808,13 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('online', () => { S.online = true; if (S.stage === 'app') sync(); });
 window.addEventListener('offline', () => { S.online = false; if (S.stage === 'app') render(); });
 setInterval(() => { if (document.visibilityState === 'visible' && S.stage === 'app') sync(); }, 15000);
-window.addEventListener('hashchange', () => { if (/pling/.test(location.hash) && S.stage === 'app') { S.tab = 'pling'; render(); } });
+window.addEventListener('hashchange', () => { if (S.stage !== 'app') return; if (/polsa/.test(location.hash)) S.tab = 'polsa'; else if (/pling/.test(location.hash)) S.tab = 'pling'; else return; render(); });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
   navigator.serviceWorker.addEventListener('message', e => {
     const m = e.data || {};
     if (m.type === 'push') sync();
-    if (m.type === 'open') { if (S.stage === 'app') { S.tab = 'pling'; render(); } sync(); }
+    if (m.type === 'open') { if (S.stage === 'app') { S.tab = /polsa/.test(m.url || '') ? 'polsa' : 'pling'; render(); } sync(); }
   });
 }
 

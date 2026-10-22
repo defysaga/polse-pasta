@@ -71,6 +71,17 @@
     <h3 class="sub-h">Siste plinger</h3>
     <div id="pl-log"></div>
   </section>
+
+  <section class="view" id="v-polsa" aria-labelledby="h-polsa" hidden>
+    <div class="sec-head">
+      <h2 id="h-polsa">Pølsa</h2>
+      <button class="iconbtn" data-act="pet-settings" aria-label="Navn og påminnelser for hunden"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>
+    </div>
+    <p class="sec-sub">Hunden deres. Gi mat hver dag så streaken holder, og konkurrer i spill og quiz.</p>
+    <div id="pet-slot"></div>
+    <div id="game-slot"></div>
+    <div id="quiz-slot"></div>
+  </section>
 </div></main>
 
 <nav class="nav" aria-label="Faner">
@@ -81,6 +92,8 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.6 3.5v5a1.9 1.9 0 0 0 1.9 1.9V21M4.5 3.5v4.5M6.4 3.5v5M21.4 3.5c-1.6 1-2.1 3-2.1 6.5h2.1V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Middager</button>
     <button data-act="tab" data-k="pling">
       <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="16.2" rx="5" ry="4.2" fill="currentColor"/><ellipse cx="5.4" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/><ellipse cx="9.3" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="14.7" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="18.6" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/></svg>Pling<span class="badge" id="pl-badge" hidden></span></button>
+    <button data-act="tab" data-k="polsa">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" transform="rotate(-35 12 12)"><circle cx="4.6" cy="9.4" r="2.7"/><circle cx="4.6" cy="14.6" r="2.7"/><circle cx="19.4" cy="9.4" r="2.7"/><circle cx="19.4" cy="14.6" r="2.7"/><rect x="4.6" y="9.6" width="14.8" height="4.8" rx="2.2"/></g></svg><span id="nav-polsa-l">Pølsa</span><span class="badge" id="polsa-badge" hidden></span></button>
   </div></div>
 </nav>
 </div>
@@ -94,8 +107,11 @@
   </div>
 </div>
 <div class="ov" id="ov" role="dialog" aria-modal="true" aria-label="Ny pling" hidden></div>
+<div class="game" id="game" role="dialog" aria-modal="true" aria-label="Pølsehopp" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="/quiz-data.js"></script>
+<script src="/game.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -8,26 +8,117 @@
 //   meta   – husnøkkelen (bare et hash) og varsel-nøklene (VAPID)
 //
 // Når noen sender en pling, sender serveren et push-varsel til den andres telefon med en gang.
+// Hver halvtime sjekker serveren om hunden har fått mat i dag, og minner dere på det hvis ikke.
 
-const VERSION = 1;
-const COLLS = new Set(["members", "links", "dinners", "plings"]);
+const VERSION = 2;
+const COLLS = new Set(["members", "links", "dinners", "plings", "feeds", "scores", "quiz", "settings"]);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DOC = 64 * 1024;
 const MAX_PHOTO = 1900 * 1024;
 const MAX_PLINGS = 300;
 const PUSH_HOSTS = [/\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /\.push\.services\.mozilla\.com$/, /^updates\.push\.services\.mozilla\.com$/, /\.notify\.windows\.com$/];
+const IMAGE_HOSTS = [/(^|\.)tiktokcdn(-[a-z]+)?\.com$/, /(^|\.)tiktokcdn-us\.com$/, /(^|\.)ttwstatic\.com$/, /(^|\.)ibyteimg\.com$/, /(^|\.)cdninstagram\.com$/, /(^|\.)fbcdn\.net$/];
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+const UA_MOBILE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const UA_DESKTOP = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+const PET_DEFAULTS = { name: "Pølsa", remind: { on: true, first: "18:00", last: "21:30" } };
+
+const hjem = (env) => env.HJEM.get(env.HJEM.idFromName("hjem"));
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      const stub = env.HJEM.get(env.HJEM.idFromName("hjem"));
-      return stub.fetch(request);
-    }
+    if (url.pathname.startsWith("/api/")) return hjem(env).fetch(request);
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response("Ikke funnet", { status: 404 });
+  },
+  // Cron (se wrangler.toml): hver halvtime. Påminnelsen om å mate hunden sendes herfra.
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(hjem(env).fetch("https://hjem.internal/_cron", { method: "POST", headers: { "X-Time": String(controller.scheduledTime || Date.now()) } }));
   }
 };
+
+/* ---------- time in Norway ---------- */
+export function osloParts(ts) {
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Oslo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ts))) parts[p.type] = p.value;
+  return { date: parts.year + "-" + parts.month + "-" + parts.day, hh: Number(parts.hour), mm: Number(parts.minute) };
+}
+export function addDays(date, n) {
+  const [y, m, d] = date.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d + n));
+  return t.toISOString().slice(0, 10);
+}
+
+/* ---------- video previews (TikTok via oEmbed, Instagram via the public embed page) ---------- */
+async function fetchT(url, opts = {}, ms = 7000) {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, Object.assign({}, opts, { signal: c.signal })); } finally { clearTimeout(t); }
+}
+const decodeHtml = (s) => String(s || "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#(\d+);/g, (m, n) => String.fromCharCode(Number(n)));
+export function tiktokId(url) { const m = /\/video\/(\d{6,25})/.exec(url || ""); return m ? m[1] : null; }
+export function instagramRef(url) {
+  const m = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(reels?|p|tv)\/([A-Za-z0-9_-]{5,40})/.exec(url || "");
+  return m ? { kind: m[1] === "p" ? "p" : m[1] === "tv" ? "tv" : "reel", code: m[2] } : null;
+}
+export function parseInstagram(html) {
+  html = String(html || "");
+  let thumb = null, author = null, title = null;
+  const img = /<img[^>]*class="[^"]*EmbeddedMediaImage[^"]*"[^>]*>/.exec(html);
+  if (img) { const s = /\ssrc="([^"]+)"/.exec(img[0]); if (s) thumb = decodeHtml(s[1]); }
+  if (!thumb) {
+    const d = /"(?:display_url|thumbnail_src)"\s*:\s*"((?:[^"\\]|\\.)+)"/.exec(html);
+    if (d) { try { thumb = JSON.parse('"' + d[1] + '"'); } catch (e) {} }
+  }
+  if (!thumb) {
+    const og = /<meta[^>]+property="og:image"[^>]+content="([^"]+)"/.exec(html) || /<meta[^>]+content="([^"]+)"[^>]+property="og:image"/.exec(html);
+    if (og) thumb = decodeHtml(og[1]);
+  }
+  const u = /class="UsernameText"[^>]*>([^<]{1,60})</.exec(html) || /"username"\s*:\s*"([A-Za-z0-9_.]{1,40})"/.exec(html);
+  if (u) author = decodeHtml(u[1]).trim();
+  const cap = /<div class="Caption">([\s\S]{0,4000}?)<div class="CaptionComments">/.exec(html);
+  if (cap) title = decodeHtml(cap[1].replace(/<a[^>]*class="CaptionUsername"[^>]*>[\s\S]*?<\/a>/, "").replace(/<br\s*\/?>/g, " ").replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+  if (!title) {
+    const ogt = /<meta[^>]+property="og:title"[^>]+content="([^"]+)"/.exec(html);
+    if (ogt) { title = decodeHtml(ogt[1]); const q = /[:]\s*["“](.+)["”]\s*$/.exec(title); if (q) title = q[1]; }
+  }
+  return { thumb, author, title };
+}
+async function tiktokPreview(href) {
+  let canonical = href;
+  if (!tiktokId(href)) {
+    try { const r = await fetchT(href, { redirect: "follow", headers: { "User-Agent": UA_MOBILE } }); if (r.url) canonical = r.url; } catch (e) {}
+  }
+  try { const c = new URL(canonical); c.search = ""; c.hash = ""; canonical = c.href; } catch (e) {}
+  const id = tiktokId(canonical);
+  const embed = id ? "https://www.tiktok.com/embed/v2/" + id : null;
+  let r;
+  try { r = await fetchT("https://www.tiktok.com/oembed?url=" + encodeURIComponent(canonical), { headers: { "User-Agent": UA_DESKTOP, Accept: "application/json" } }); }
+  catch (e) { return embed ? { canonical, embed } : null; }
+  if (!r.ok) return embed ? { canonical, embed } : null;
+  const j = await r.json().catch(() => ({}));
+  return { title: j.title || "", author: j.author_name || "", thumb: j.thumbnail_url || null, canonical, embed };
+}
+async function instagramPreview(href) {
+  const ref = instagramRef(href);
+  if (!ref) return null;
+  const base = "https://www.instagram.com/" + ref.kind + "/" + ref.code + "/";
+  const out = { canonical: base, embed: base + "embed" };
+  const tries = [[base + "embed/captioned/", UA_DESKTOP], [base, "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)"]];
+  for (const [u, ua] of tries) {
+    try {
+      const r = await fetchT(u, { headers: { "User-Agent": ua, Accept: "text/html" } });
+      if (!r.ok) continue;
+      const p = parseInstagram(await r.text());
+      if (p.thumb) out.thumb = out.thumb || p.thumb;
+      if (p.author) out.author = out.author || p.author;
+      if (p.title) out.title = out.title || p.title;
+      if (out.thumb) break;
+    } catch (e) {}
+  }
+  return out;
+}
 
 /* ---------- small helpers ---------- */
 const enc = new TextEncoder();
@@ -221,6 +312,8 @@ export class Hjem {
         return json({ ok: true, claimed: !!this.meta("keyhash"), vapidPublicKey: v.publicKey, version: VERSION });
       }
       if (path === "/api/claim" && m === "POST") return await this.claim(request);
+      // Bare cron-jobben når denne: Workeren sender kun /api/... videre utenfra.
+      if (path === "/_cron" && m === "POST") return await this.petCron(Number(request.headers.get("X-Time")) || Date.now(), url.origin);
 
       const photo = /^\/api\/photo\/([A-Za-z0-9_-]{10,64})$/.exec(path);
       if (photo && m === "GET") return this.getPhoto(photo[1]);
@@ -234,6 +327,7 @@ export class Hjem {
         this.fails.set(ip, { n: fresh ? 1 : f.n + 1, t: fresh ? Date.now() : f.t });
         return fail(401, "key", "Feil husnøkkel.");
       }
+      if (this.meta("origin") !== url.origin) this.setMeta("origin", url.origin);
 
       if (path === "/api/sync" && m === "GET") return this.sync(Number(url.searchParams.get("since") || 0));
       if (path === "/api/write" && m === "POST") return await this.write(request, url);
@@ -246,6 +340,7 @@ export class Hjem {
         return json({ ok: true });
       }
       if (path === "/api/test-push" && m === "POST") return await this.testPush(request, url);
+      if (path === "/api/preview" && m === "GET") return await this.preview(url);
       return fail(404, "not_found", "Ukjent adresse.");
     } catch (e) {
       return fail(500, "server", "Noe gikk galt på serveren: " + String(e && e.message || e));
@@ -372,6 +467,83 @@ export class Hjem {
       return { host: new URL(s.endpoint).host, status: r.status, ok: r.ok, text: r.text };
     }));
     return json({ ok: results.some((r) => r.ok), results });
+  }
+
+  getDoc(coll, id) {
+    const r = this.sql.exec("SELECT data FROM docs WHERE coll = ? AND id = ? AND deleted = 0", coll, id).toArray()[0];
+    return r ? JSON.parse(r.data) : null;
+  }
+
+  /* Forhåndsvisning: tittel, navn og bilde for en TikTok- eller Instagram-lenke. Bildet lagres her. */
+  async preview(url) {
+    let u;
+    try { u = new URL(String(url.searchParams.get("url") || "")); } catch (e) { return fail(400, "url", "Ugyldig lenke."); }
+    if (!/^https?:$/.test(u.protocol)) return fail(400, "url", "Ugyldig lenke.");
+    const host = u.hostname.toLowerCase();
+    let p = null;
+    if (/(^|\.)tiktok\.com$/.test(host)) p = await tiktokPreview(u.href);
+    else if (/(^|\.)instagram\.com$/.test(host)) p = await instagramPreview(u.href);
+    if (!p) return json({ ok: true, found: false });
+    const photo = p.thumb ? await this.storeRemoteImage(p.thumb) : null;
+    return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 300), author: String(p.author || "").slice(0, 80), photo, canonical: p.canonical || null, embed: p.embed || null });
+  }
+
+  async storeRemoteImage(src) {
+    try {
+      const u = new URL(src);
+      if (u.protocol !== "https:" || !IMAGE_HOSTS.some((re) => re.test(u.hostname))) return null;
+      const r = await fetchT(u.href, { headers: { "User-Agent": UA_DESKTOP, Accept: "image/avif,image/webp,image/jpeg,image/*" } });
+      const type = (r.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+      if (!r.ok || !IMAGE_TYPES.includes(type)) return null;
+      const buf = await r.arrayBuffer();
+      if (!buf.byteLength || buf.byteLength > MAX_PHOTO) return null;
+      const id = randomId(24);
+      this.sql.exec("INSERT INTO photos (id, type, bytes, created) VALUES (?, ?, ?, ?)", id, type, buf, Date.now());
+      return id;
+    } catch (e) { return null; }
+  }
+
+  /* Hunden: hvor mange dager på rad har den fått mat, til og med dagen før `date`? */
+  streakBefore(date) {
+    const fed = new Set(this.sql.exec("SELECT id FROM docs WHERE coll = 'feeds' AND deleted = 0").toArray().map((r) => r.id));
+    let n = 0, d = addDays(date, -1);
+    while (fed.has(d)) { n++; d = addDays(d, -1); }
+    return n;
+  }
+
+  async pushAll(payload, origin) {
+    const subs = this.sql.exec("SELECT endpoint, member, p256dh, auth FROM subs").toArray();
+    if (!subs.length) return [];
+    const vapid = await this.vapid();
+    return Promise.all(subs.map(async (s) => {
+      const r = await sendPush(s, Object.assign({}, payload, { badge: this.unseenFor(s.member) }), vapid, origin);
+      if (r.status === 404 || r.status === 410) this.sql.exec("DELETE FROM subs WHERE endpoint = ?", s.endpoint);
+      return r;
+    }));
+  }
+
+  /* Kjøres hver halvtime. Sender påminnelse på valgte tidspunkt hvis ingen har matet hunden i dag. */
+  async petCron(ts, origin) {
+    const { date, hh, mm } = osloParts(ts);
+    const slot = String(hh).padStart(2, "0") + ":" + (mm < 30 ? "00" : "30");
+    const pet = Object.assign({}, PET_DEFAULTS, this.getDoc("settings", "pet") || {});
+    const rem = Object.assign({}, PET_DEFAULTS.remind, pet.remind || {});
+    if (!rem.on) return json({ ok: true, sent: 0, why: "off" });
+    const which = slot === rem.first ? "first" : slot === rem.last ? "last" : null;
+    if (!which) return json({ ok: true, sent: 0, why: "slot", slot });
+    if (this.getDoc("feeds", date)) return json({ ok: true, sent: 0, why: "fed" });
+    const flag = "petrem:" + date + ":" + which;
+    if (this.meta(flag)) return json({ ok: true, sent: 0, why: "sent" });
+    this.setMeta(flag, String(Date.now()));
+    this.sql.exec("DELETE FROM meta WHERE k LIKE 'petrem:%' AND k < ?", "petrem:" + addDays(date, -7));
+    const name = String(pet.name || "Pølsa").slice(0, 30);
+    const streak = this.streakBefore(date);
+    const days = streak === 1 ? "dag" : "dager";
+    const payload = which === "first"
+      ? { title: "🐶 " + name + " er sulten!", body: "Ingen har gitt " + name + " mat i dag. Trykk for å mate." }
+      : { title: "🐶 Siste sjanse i dag!", body: streak > 0 ? name + " har ikke fått mat i dag. Streaken på " + streak + " " + days + " ryker ved midnatt." : name + " har ikke fått mat i dag. Gi litt mat før du legger deg." };
+    const results = await this.pushAll(Object.assign(payload, { tag: "pet-" + date, url: "/#polsa" }), origin && !/hjem\.internal/.test(origin) ? origin : (this.meta("origin") || "https://polse-pasta.workers.dev"));
+    return json({ ok: true, sent: results.filter((r) => r.ok).length, which });
   }
 
   async putPhoto(request) {

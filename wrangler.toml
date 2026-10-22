@@ -23,3 +23,7 @@ new_sqlite_classes = ["Hjem"]
 
 [observability]
 enabled = true
+
+# Hver halvtime: sjekk om hunden har fått mat i dag, og send påminnelse på valgt tidspunkt.
+[triggers]
+crons = ["*/30 * * * *"]

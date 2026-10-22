@@ -2,10 +2,10 @@
 // viser push-varsler, og åpner appen når du trykker på et varsel.
 // Appens filer hentes alltid ferske når det er nett, så du trenger ikke endre noe her ved oppdateringer.
 
-const SHELL = 'pp-shell-v1';
+const SHELL = 'pp-shell-v2';
 const PHOTOS = 'pp-photos-v1';
 const FONTS = 'pp-fonts-v1';
-const FILES = ['/', '/app.css', '/app.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
+const FILES = ['/', '/app.css', '/app.js', '/game.js', '/quiz-data.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))).catch(() => {}));

@@ -208,5 +208,88 @@ const n = env.HJEM && (await call("/api/sync?since=0", { key: K })).data.docs.fi
 assert.equal(n, 300);
 ok("gamle plinger ryddes bort (maks 300)");
 
+console.log("Hunden og påminnelser");
+{
+  const { osloParts, addDays } = await import("../src/worker.js");
+  assert.deepEqual(osloParts(Date.UTC(2026, 9, 22, 16, 0)), { date: "2026-10-22", hh: 18, mm: 0 }); // sommertid
+  assert.deepEqual(osloParts(Date.UTC(2026, 11, 1, 23, 30)), { date: "2026-12-02", hh: 0, mm: 30 }); // vintertid, over midnatt
+  assert.equal(addDays("2026-03-01", -1), "2026-02-28");
+  ok("norsk tid og datoer regnes riktig (sommer- og vintertid)");
+
+  const cron = (ts) => env.HJEM.get().fetch(new Request("https://hjem.internal/_cron", { method: "POST", headers: { "X-Time": String(ts) } })).then((r) => r.json());
+  assert.equal((await worker.fetch(new Request(BASE + "/_cron", { method: "POST" }), env)).status, 404);
+  ok("påminnelses-jobben kan ikke startes utenfra");
+  await call("/api/subscribe", { method: "POST", key: K, body: { member: "mads", sub: sub(madsPhone, "mads") } }); // fjernet i 410-testen over
+  // three days fed in a row before 22 Oct, not fed on 22 Oct
+  await call("/api/write", { method: "POST", key: K, body: { ops: ["2026-10-19", "2026-10-20", "2026-10-21"].map((d) => ({ op: "set", coll: "feeds", id: d, data: { by: "kari", at: 1 } })) } });
+  received.length = 0;
+  let c = await cron(Date.UTC(2026, 9, 22, 14, 0)); // 16:00 Oslo
+  assert.equal(c.why, "slot"); assert.equal(received.length, 0);
+  c = await cron(Date.UTC(2026, 9, 22, 16, 1)); // 18:01 Oslo
+  assert.equal(c.which, "first"); assert.equal(received.length, 2);
+  const first = JSON.parse(decrypt(received.find((x) => x.url === "/kari").body, kariPhone));
+  assert.equal(first.title, "🐶 Pølsa er sulten!"); assert.equal(first.url, "/#polsa");
+  c = await cron(Date.UTC(2026, 9, 22, 16, 5));
+  assert.equal(c.why, "sent");
+  ok("kl. 18 uten mat: begge får «Pølsa er sulten!», bare én gang");
+  received.length = 0;
+  c = await cron(Date.UTC(2026, 9, 22, 19, 30)); // 21:30 Oslo
+  const last = JSON.parse(decrypt(received.find((x) => x.url === "/mads").body, madsPhone));
+  assert.match(last.body, /Streaken på 3 dager ryker ved midnatt/);
+  ok("kl. 21.30: «Siste sjanse», med streaken på 3 dager");
+  await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "feeds", id: "2026-10-23", data: { by: "mads", at: 2 } }, { op: "set", coll: "settings", id: "pet", data: { name: "Frank", remind: { on: true, first: "12:00", last: "20:00" } } }] } });
+  received.length = 0;
+  assert.equal((await cron(Date.UTC(2026, 9, 23, 10, 0))).why, "fed");
+  assert.equal(received.length, 0);
+  assert.equal((await cron(Date.UTC(2026, 9, 24, 10, 0))).which, "first");
+  assert.equal(JSON.parse(decrypt(received.find((x) => x.url === "/kari").body, kariPhone)).title, "🐶 Frank er sulten!");
+  await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "merge", coll: "settings", id: "pet", data: { remind: { on: false } } }] } });
+  assert.equal((await cron(Date.UTC(2026, 9, 24, 18, 0))).why, "off");
+  ok("ingen påminnelse når hunden er matet; eget navn og egne tider; kan skrus av");
+}
+
+console.log("Forhåndsvisning");
+{
+  const { parseInstagram, tiktokId, instagramRef } = await import("../src/worker.js");
+  assert.equal(tiktokId("https://www.tiktok.com/@matglad/video/7421123456789?is_from_webapp=1"), "7421123456789");
+  assert.deepEqual(instagramRef("https://www.instagram.com/reel/C9xYz_ab12/?igsh=abc"), { kind: "reel", code: "C9xYz_ab12" });
+  assert.deepEqual(instagramRef("https://www.instagram.com/matglad/reels/C9xYz_ab12/"), { kind: "reel", code: "C9xYz_ab12" });
+  const ig = parseInstagram('<a class="UsernameText" href="#">matglad</a><img class="EmbeddedMediaImage" alt="x" src="https://scontent.cdninstagram.com/v/t51/abc.jpg?a=1&amp;b=2"><div class="Caption"><a class="CaptionUsername" href="#">matglad</a><br>Kremet pasta på 15 min 🍝 #pasta<div class="CaptionComments">');
+  assert.equal(ig.thumb, "https://scontent.cdninstagram.com/v/t51/abc.jpg?a=1&b=2");
+  assert.equal(ig.author, "matglad");
+  assert.equal(ig.title, "Kremet pasta på 15 min 🍝 #pasta");
+  assert.equal(parseInstagram('<meta property="og:image" content="https://scontent-osl1-1.cdninstagram.com/x.jpg">').thumb, "https://scontent-osl1-1.cdninstagram.com/x.jpg");
+  ok("lenker og Instagram-sider tolkes riktig");
+
+  const realFetch = globalThis.fetch;
+  const seen = [];
+  const jpg = new Uint8Array([0xff, 0xd8, 0xff, 1, 2, 3, 0xff, 0xd9]);
+  globalThis.fetch = async (u, o) => {
+    const s = String(u instanceof Request ? u.url : u);
+    seen.push(s);
+    if (s.startsWith("https://vm.tiktok.com/")) return Object.defineProperty(new Response("", { status: 200 }), "url", { value: "https://www.tiktok.com/@matglad/video/7421123456789?_r=1" });
+    if (s.startsWith("https://www.tiktok.com/oembed")) return new Response(JSON.stringify({ title: "Kremet gochujang-pasta #pasta #fyp", author_name: "Matglad", thumbnail_url: "https://p16-sign.tiktokcdn-eu.com/obj/thumb.jpeg?x=1" }), { headers: { "Content-Type": "application/json" } });
+    if (s.startsWith("https://p16-sign.tiktokcdn-eu.com/")) return new Response(jpg, { headers: { "Content-Type": "image/jpeg" } });
+    if (s.startsWith("https://evil.example.com")) throw new Error("should not fetch");
+    return realFetch(u, o);
+  };
+  try {
+    r = await call("/api/preview?url=" + encodeURIComponent("https://vm.tiktok.com/ZMabc123/"), { key: K });
+    assert.equal(r.status, 200);
+    assert.equal(r.data.found, true);
+    assert.equal(r.data.title, "Kremet gochujang-pasta #pasta #fyp");
+    assert.equal(r.data.author, "Matglad");
+    assert.equal(r.data.embed, "https://www.tiktok.com/embed/v2/7421123456789");
+    assert.ok(seen.some((s) => s.includes(encodeURIComponent("https://www.tiktok.com/@matglad/video/7421123456789"))), "oEmbed med full lenke");
+    const img = await call("/api/photo/" + r.data.photo);
+    assert.deepEqual(Buffer.from(img.data), Buffer.from(jpg));
+    ok("TikTok-kortlenke: tittel, navn og bilde hentes, bildet lagres hos oss");
+    assert.equal((await call("/api/preview?url=" + encodeURIComponent("https://www.tiktok.com/@x/video/123456789"))).status, 401);
+    r = await call("/api/preview?url=" + encodeURIComponent("https://evil.example.com/a"), { key: K });
+    assert.equal(r.data.found, false);
+    ok("forhåndsvisning krever husnøkkel og henter bare fra TikTok og Instagram");
+  } finally { globalThis.fetch = realFetch; }
+}
+
 pushServer.close();
 console.log(`\nAlle ${passed} tester bestått.`);

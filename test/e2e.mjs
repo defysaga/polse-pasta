@@ -4,6 +4,15 @@ import { chromium } from "/opt/npm-tools/node_modules/playwright/index.mjs";
 import zlib from "node:zlib";
 import { start } from "./dev-server.mjs";
 
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (u, o) => {
+  const url = String(u instanceof Request ? u.url : u);
+  if (url.startsWith("https://vm.tiktok.com/")) return Object.defineProperty(new Response(""), "url", { value: "https://www.tiktok.com/@matglad/video/7421123456789?_r=1" });
+  if (url.startsWith("https://www.tiktok.com/oembed")) return new Response(JSON.stringify({ title: "Smash-tacos med lime-mayo 🌮 #taco #fyp #middag", author_name: "Matglad", thumbnail_url: "https://p16-sign.tiktokcdn-eu.com/thumb.jpeg" }), { headers: { "Content-Type": "application/json" } });
+  if (url.startsWith("https://p16-sign.tiktokcdn-eu.com/")) return new Response(THUMB, { headers: { "Content-Type": "image/png" } });
+  return realFetch(u, o);
+};
+let THUMB = null;
 const OUT = process.env.OUT || "/tmp/claude-0/-home-claude/f73fbbb6-339a-50d3-8838-b645ea576060/scratchpad/";
 const server = await start(8799);
 const BASE = "http://localhost:8799";
@@ -29,6 +38,7 @@ function png(w, h) {
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
+THUMB = png(270, 480);
 try {
   const A = await phone("Mads", "light");
   await A.goto(BASE + "/");
@@ -138,6 +148,107 @@ try {
   await A.evaluate(() => window.dispatchEvent(new Event("online")));
   await B.waitForSelector('#ov:not([hidden]) .ov-card', { timeout: 20000 });
   log("uten nett: plingen legges i kø og sendes når nettet er tilbake");
+
+  // --- the dog ---
+  const closeOv = async (P) => { while (await P.$('#ov:not([hidden]) [data-act="ov-close"]')) { await P.click('#ov [data-act="ov-close"]'); await P.waitForTimeout(450); } };
+  await closeOv(A); await closeOv(B);
+  await A.click('.nav [data-k="polsa"]');
+  await A.waitForSelector('[data-act="feed"]');
+  await A.click('[data-act="feed"]');
+  await A.waitForSelector('[data-act="treat"]');
+  const streakTxt = await A.textContent(".streak b");
+  if (streakTxt.trim() !== "1") throw new Error("streak " + streakTxt);
+  await A.click('[data-act="treat"]');
+  await A.waitForTimeout(300);
+  await shot(A, "f1-polsa");
+  log("Mads gir Pølsa mat (streak 1) og en godbit");
+  await B.click('.nav [data-k="polsa"]');
+  await B.waitForFunction(() => /Mads ga Pølsa mat/.test(document.querySelector(".pet-status")?.textContent || ""), null, { timeout: 20000 });
+  log("Kari ser at Mads har gitt Pølsa mat");
+
+  // --- Pølsehopp ---
+  await A.click('[data-act="play-game"]');
+  await A.waitForSelector('#game:not([hidden]) [data-g="start"]');
+  await A.click('[data-g="start"]');
+  await A.waitForTimeout(1400);
+  await shot(A, "f2-spill");
+  await A.waitForSelector('#game [data-g="again"]', { timeout: 30000 });
+  const score = Number(await A.textContent(".g-big"));
+  if (!(score > 0)) throw new Error("score " + score);
+  await shot(A, "f3-spill-slutt");
+  await A.click('#game [data-g="close"]');
+  log("Mads spiller dagens bane (" + score + " poeng) uten å hoppe, og poengene lagres");
+  await B.waitForSelector('#ov:not([hidden]) [data-act="ov-game"]', { timeout: 20000 });
+  await B.click('[data-act="ov-game"]');
+  await B.waitForSelector('#game:not([hidden]) [data-g="start"]');
+  await B.click('[data-g="start"]');
+  // Kari jumps every time an obstacle gets close: same course, so she should beat Mads
+  for (let i = 0; i < 90; i++) {
+    if (await B.$('#game [data-g="again"]')) break;
+    await B.keyboard.down("Space"); await B.waitForTimeout(260); await B.keyboard.up("Space"); await B.waitForTimeout(140);
+  }
+  await B.waitForSelector('#game [data-g="again"]', { timeout: 60000 });
+  const kariScore = Number(await B.textContent(".g-big"));
+  await B.click('#game [data-g="close"]');
+  log("Kari får pling om rekorden, åpner spillet og får " + kariScore + " poeng på samme bane");
+
+  // --- quiz ---
+  await A.click('[data-act="quiz-new"][data-k="hvem"]');
+  await A.waitForSelector('[data-act="fq-pick"]');
+  const qText = await A.textContent("#fq-qtext");
+  await A.click('[data-act="fq-pick"]:last-of-type');
+  await A.waitForTimeout(400);
+  await closeOv(B);
+  await B.waitForSelector('#ov:not([hidden]) [data-act="ov-quiz"]', { timeout: 20000 });
+  await B.click('[data-act="ov-quiz"]');
+  await B.waitForSelector('[data-act="qa-pick"]');
+  await B.click('[data-act="qa-pick"]:last-of-type');
+  await B.waitForSelector(".reveal.ok");
+  await shot(B, "f4-quiz");
+  log("«Hvem av oss?»: " + qText.trim() + " → begge svarer Kari, «Dere er enige!»");
+  await B.click('#sheet .x');
+  await B.waitForTimeout(300);
+  // Mads får plinger om Karis rekord og quizfasiten
+  await A.waitForSelector('#ov:not([hidden])', { timeout: 20000 });
+  await shot(A, "f4b-pling-spill");
+  await closeOv(A);
+  await A.click('[data-act="quiz-new"][data-k="egen"]');
+  await A.fill("#fq-q", "Hva bestilte jeg på første date?");
+  await A.fill("#fq-a", "Pizza");
+  await A.fill("#fq-w1", "Sushi");
+  await A.fill("#fq-w2", "Taco");
+  await A.click('#f-quiz [type=submit]');
+  await A.waitForTimeout(400);
+  await B.waitForSelector('#ov:not([hidden]) [data-act="ov-quiz"]', { timeout: 20000 });
+  await B.click('[data-act="ov-quiz"]');
+  await B.waitForSelector('.opt');
+  await B.click('.opt:has-text("Pizza")');
+  await B.waitForSelector(".reveal.ok .verdict");
+  await B.click('#sheet .x');
+  await A.waitForFunction(() => /Mads.*kjenner deg: 2 poeng|kjenner deg: 2 poeng/.test(document.querySelector("#quiz-slot")?.textContent || ""), null, { timeout: 20000 }).catch(() => {});
+  const statLine = await A.textContent("#quiz-slot .small");
+  if (!/2 poeng/.test(statLine)) throw new Error("quiz-poeng: " + statLine);
+  await shot(A, "f5-quiz-kort");
+  log("eget spørsmål med alternativer: Kari svarer riktig og får 2 poeng (" + statLine.trim() + ")");
+
+  // --- video preview ---
+  await closeOv(A);
+  await A.click('.nav [data-k="inspo"]');
+  await A.click('#v-inspo .sec-head [data-act="add-link"]');
+  await A.fill("#fl-url", "https://vm.tiktok.com/ZMabc123/");
+  await A.waitForSelector("#fl-prev .prevbox img", { timeout: 8000 });
+  const autoTitle = await A.inputValue("#fl-title");
+  if (autoTitle !== "Smash-tacos med lime-mayo 🌮") throw new Error("tittel: " + autoTitle);
+  await shot(A, "f6-forhandsvisning");
+  await A.click('#f-link [type=submit]');
+  await A.waitForSelector('.rcard button.rthumb img');
+  await A.click('.rcard button.rthumb');
+  await A.waitForSelector('#sheet .vwrap iframe');
+  const src = await A.getAttribute('#sheet .vwrap iframe', 'src');
+  if (src !== "https://www.tiktok.com/embed/v2/7421123456789") throw new Error("iframe " + src);
+  log("TikTok-kortlenke: bilde og tittel hentes av seg selv, og videoen spilles av i appen");
+  await A.click('#sheet .x');
+  await A.waitForTimeout(300);
 
   await A.click(".duo");
   await A.waitForSelector("#keytext");
