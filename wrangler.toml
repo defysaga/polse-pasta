@@ -1,0 +1,21 @@
+# Oppsett for Cloudflare. Navnet må være det samme som Workeren heter i Cloudflare.
+name = "polse-pasta"
+main = "src/worker.js"
+compatibility_date = "2025-06-01"
+
+# Appens filer (HTML, CSS, JS, ikoner) ligger i public/ og vises direkte.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Databasen: én Durable Object med SQLite.
+[[durable_objects.bindings]]
+name = "HJEM"
+class_name = "Hjem"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Hjem"]
+
+[observability]
+enabled = true
