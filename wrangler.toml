@@ -3,6 +3,10 @@ name = "polse-pasta"
 main = "src/worker.js"
 compatibility_date = "2025-06-01"
 
+# Appen ligger på polse-pasta.<navn>.workers.dev. Egne forhåndsvisnings-adresser trengs ikke.
+workers_dev = true
+preview_urls = false
+
 # Appens filer (HTML, CSS, JS, ikoner) ligger i public/ og vises direkte.
 [assets]
 directory = "./public"
