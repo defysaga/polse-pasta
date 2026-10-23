@@ -214,8 +214,10 @@ let syncing = null;
 function sync(full) {
   if (!S.key) return Promise.resolve();
   if (syncing) return syncing;
+  let dirty = false;
   syncing = (async () => {
     const before = new Set(Object.keys(S.docs.plings));
+    const wasOnline = S.online, wasSynced = S.synced;
     try {
       if (S.queue.length) await flush();
       const r = await api('/api/sync?since=' + (full ? 0 : S.since));
@@ -224,14 +226,16 @@ function sync(full) {
       if (S.queue.length) applyLocal(S.queue);
       if (typeof r.now === 'number') S.since = full ? r.now : Math.max(S.since, r.now);
       S.online = true; S.synced = true;
-      save();
+      dirty = !!full || !wasSynced || !wasOnline || (r.docs || []).length > 0;
+      if (dirty) save();
       const fresh = (r.docs || []).some(d => d.coll === 'plings' && !d.deleted && !before.has(d.id) && d.data && d.data.from !== S.me && (d.data.createdAt || 0) > S.booted - 5000);
       if (fresh) ping();
     } catch (e) {
       if (e.code === 'key') badKey();
       else if (e.code === 'offline' || (e.status || 0) >= 500) S.online = false;
+      dirty = wasOnline !== S.online;
     }
-  })().finally(() => { syncing = null; changed(); });
+  })().finally(() => { syncing = null; if (dirty) changed(); });
   return syncing;
 }
 let flushing = null;
@@ -415,6 +419,8 @@ function pushCard() {
 /* ---------- rendering ---------- */
 function changed() {
   derive();
+  // Ikke tegn om midt i en scroll: vent til fingeren og farten har stoppet
+  if (S.scrolling && S.stage === 'app') { S.pendingRender = true; return; }
   if (S.stage === 'app') {
     render();
     if (S.sheet && S.sheet.type === 'dinner') renderDetail();
@@ -430,9 +436,10 @@ function render() {
   if (!inApp) { renderStart(); return; }
   ['inspo', 'middager', 'handle', 'pling', 'polsa'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
   $('#nav-polsa-l').textContent = pet().name;
-  document.querySelectorAll('.nav [data-act="tab"]').forEach(b => {
+  document.querySelectorAll('.tabbar .tab').forEach(b => {
     if (b.dataset.k === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
+  moveLens();
   renderHeader();
   renderBadge();
   const inv = $('#invite-slot');
@@ -460,6 +467,9 @@ function renderBadge() {
   b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
   const pn = polsaBadge(), pb = $('#polsa-badge');
   pb.hidden = !pn; pb.textContent = pn > 9 ? '9+' : String(pn);
+  const cur = $('.tabbar .tab[data-k="' + S.tab + '"] svg'), home = $('#home-btn');
+  if (cur && home.dataset.k !== S.tab) { home.innerHTML = cur.outerHTML; home.dataset.k = S.tab; }
+  home.classList.toggle('has-badge', !!(n || pn));
   try { if ('setAppBadge' in navigator) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
 }
 
@@ -1554,9 +1564,123 @@ function renderShop() {
     + '</div>';
 }
 
+/* ---------- the menu (built like Radar's) ---------- */
+const TABS = ['inspo', 'middager', 'handle', 'pling', 'polsa'];
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let lastLens = null, tabDragAt = 0, quietScrollUntil = 0;
+const scrollMem = {};
+// Linsen flyttes med transform rett på elementet, så telefonen bare flytter ett lag
+function setLens(pos, sx, sy) {
+  $('#tab-lens').style.transform = 'translate3d(' + (pos * 100).toFixed(2) + '%,0,0) scale(' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
+}
+function moveLens() {
+  const i = TABS.indexOf(S.tab);
+  $('#tabs').classList.toggle('no-sel', i < 0);
+  if (i < 0) { lastLens = null; return; }
+  if (lastLens !== null && lastLens !== i && !reducedMotion()) {
+    // Linsen strekker seg litt mens den flytter seg, som flytende glass
+    setLens(i, 1.16, 0.9);
+    setTimeout(() => { if (lastLens === i) setLens(i, 1, 1); }, 170);
+  } else setLens(i, 1, 1);
+  lastLens = i;
+}
+function quietScrollTo(y) { quietScrollUntil = performance.now() + 450; window.scrollTo(0, y); }
+// Hver fane husker hvor langt ned du var. Trykk på fanen du står i for å gå til toppen.
+function selectTab(k) {
+  if (S.tab === k) { quietScrollUntil = performance.now() + 700; window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' }); moveLens(); return; }
+  scrollMem[S.tab] = window.scrollY;
+  S.tab = k;
+  render();
+  quietScrollTo(scrollMem[k] || 0);
+}
+function setCollapsed(on) {
+  if (S.collapsed === on) return;
+  S.collapsed = on;
+  $('.tabbar').classList.toggle('is-collapsed', on);
+  const home = $('#home-btn');
+  home.tabIndex = on ? 0 : -1;
+  home.setAttribute('aria-hidden', String(!on));
+  $('#tabs').setAttribute('aria-hidden', String(on));
+}
+// Hold inne og dra over menyen: linsen følger fingeren, slipp for å velge
+(function tabDrag() {
+  const pill = $('#tabs');
+  let startX = null, moved = false, target = 0, stretch = 0, lastX = 0, lastT = 0, hover = null, raf = 0, rect = null, n = 5, w = 1;
+  const tabs = () => [...pill.querySelectorAll('.tab')];
+  const posFor = x => Math.max(0, Math.min(n - 1, (x - rect.left - 5 - w / 2) / w));
+  function frame() {
+    raf = 0;
+    if (startX === null || !moved) return;
+    stretch *= 0.82;
+    setLens(target, 1.08 + stretch, 1.08 - stretch * 0.45);
+    const h = tabs()[Math.round(target)];
+    if (h !== hover) { if (hover) hover.classList.remove('is-hover'); if (h) h.classList.add('is-hover'); hover = h; }
+    if (stretch > 0.004) raf = requestAnimationFrame(frame);
+  }
+  pill.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    rect = pill.getBoundingClientRect(); n = tabs().length; w = (rect.width - 10) / n;
+    startX = lastX = e.touches[0].clientX; lastT = performance.now();
+    moved = false; stretch = 0; hover = null;
+    const i = TABS.indexOf(S.tab);
+    if (i >= 0) setLens(i, 1.08, 1.08); // linsen løftes litt når du trykker
+  }, { passive: true });
+  pill.addEventListener('touchmove', e => {
+    if (startX === null) return;
+    const x = e.touches[0].clientX;
+    if (!moved && Math.abs(x - startX) < 8) return;
+    if (!moved) { moved = true; pill.classList.add('is-dragging'); }
+    e.preventDefault();
+    const now = performance.now(), speed = Math.abs(x - lastX) / Math.max(1, now - lastT);
+    lastX = x; lastT = now;
+    stretch = Math.min(0.26, Math.max(stretch, speed * 0.2));
+    target = posFor(x);
+    if (!raf) raf = requestAnimationFrame(frame);
+  }, { passive: false });
+  const end = () => {
+    if (startX === null) return;
+    startX = null;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    pill.classList.remove('is-dragging');
+    tabs().forEach(t => t.classList.remove('is-hover'));
+    if (!moved) { moveLens(); return; }
+    tabDragAt = Date.now();
+    const t = tabs()[Math.round(target)];
+    lastLens = null;
+    if (t && t.dataset.k !== S.tab) { if (S.sheet) closeSheet(); selectTab(t.dataset.k); } else moveLens();
+  };
+  pill.addEventListener('touchend', end);
+  pill.addEventListener('touchcancel', end);
+  window.addEventListener('resize', moveLens);
+})();
+// Menyen krymper til en liten knapp når du scroller nedover. Trykk på knappen, eller scroll helt opp, for å få den frem igjen.
+(function collapsingBar() {
+  const root = document.documentElement;
+  let lastY = window.scrollY, down = 0, ticking = false, idle = null;
+  function onScroll() {
+    ticking = false;
+    const y = window.scrollY, dy = y - lastY;
+    lastY = y;
+    if (y < 80) { down = 0; setCollapsed(false); return; }
+    if (performance.now() < quietScrollUntil) { down = 0; return; } // appen scrollet selv (bytte av fane)
+    if (dy > 0) { down += dy; if (down > 36) setCollapsed(true); }
+    else if (dy < 0) down = 0;
+  }
+  window.addEventListener('scroll', () => {
+    if (!S.scrolling) { S.scrolling = true; root.classList.add('is-scrolling'); }
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      S.scrolling = false; root.classList.remove('is-scrolling');
+      if (S.pendingRender) { S.pendingRender = false; changed(); }
+    }, 220);
+    if (!ticking) { ticking = true; requestAnimationFrame(onScroll); }
+  }, { passive: true });
+  $('#home-btn').addEventListener('click', () => { down = 0; setCollapsed(false); });
+})();
+
 /* ---------- events ---------- */
 const ACT = {
-  'tab': b => { if (S.sheet) closeSheet(); S.tab = b.dataset.k; render(); window.scrollTo({ top: 0 }); },
+  'tab': b => { if (Date.now() - tabDragAt < 450 && b.closest('.tabbar')) return; if (S.sheet) closeSheet(); selectTab(b.dataset.k); },
   'lf': b => { S.lf = b.dataset.k; renderInspo(); },
   'tagf': b => { S.tagf = S.tagf === b.dataset.k ? null : b.dataset.k; renderInspo(); },
   'clear-f': () => { S.lf = 'alle'; S.tagf = null; S.q = ''; const q = $('#q-inspo'); if (q) q.value = ''; renderInspo(); },

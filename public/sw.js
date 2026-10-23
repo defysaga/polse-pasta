@@ -2,7 +2,7 @@
 // viser push-varsler, og åpner appen når du trykker på et varsel.
 // Appens filer hentes alltid ferske når det er nett, så du trenger ikke endre noe her ved oppdateringer.
 
-const SHELL = 'pp-shell-v3';
+const SHELL = 'pp-shell-v4';
 const PHOTOS = 'pp-photos-v1';
 const FONTS = 'pp-fonts-v1';
 const FILES = ['/', '/app.css', '/app.js', '/game.js', '/quiz-data.js', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];

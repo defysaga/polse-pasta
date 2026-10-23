@@ -69,7 +69,7 @@ a{color:inherit}
 .av{display:inline-grid;place-items:center;border-radius:50%;background:var(--surface-2);border:2px solid var(--avc,var(--ink-2));font-weight:800;font-size:11px;color:var(--ink);flex:none;line-height:1}
 
 /* Main */
-main{padding-block:18px calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 32px)}
+main{padding-block:18px calc(env(safe-area-inset-bottom,0px) + 108px)}
 .view{display:flex;flex-direction:column;gap:14px}
 .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .sec-head h2{font-family:var(--f-display);font-weight:400;font-size:32px;line-height:1;margin:0;text-wrap:balance}
@@ -181,12 +181,6 @@ main{padding-block:18px calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 32
 .empty .btn{margin-top:6px}
 
 /* Bottom nav */
-.nav{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.nav-in{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:var(--nav-h)}
-.nav button{min-width:0;font-size:11.5px}
-.nav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;font-weight:700;color:var(--ink-2);position:relative}
-.nav button[aria-current="page"]{color:var(--ketchup)}
-.nav svg{width:25px;height:25px}
 .badge{position:absolute;top:7px;left:calc(50% + 7px);min-width:19px;height:19px;border-radius:10px;background:var(--mustard);color:var(--on-mustard);font:500 11px/19px var(--f-mono);text-align:center;padding:0 5px}
 
 /* Sheets */
@@ -463,3 +457,46 @@ button.rthumb{border:0;padding:0;width:100%;font:inherit;color:inherit;cursor:po
 .shopi .iconbtn{border:0;width:30px;height:30px;color:var(--ink-2)}
 .shopi .iconbtn svg{width:14px;height:14px}
 .fc-t{margin:0;font-family:var(--f-display);font-weight:400;font-size:22px;line-height:1.1}
+
+/* ---------- Bunnmeny i glass (samme oppbygning som i Radar) ---------- */
+:root{--glass:rgba(255,255,255,.76);--glass-line:rgba(27,40,34,.10);--lens:rgba(214,63,43,.13);--glass-hi:rgba(255,255,255,.9);
+  --spring:cubic-bezier(.2,1.15,.35,1);--ease-in:cubic-bezier(.4,0,.9,.6)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--glass:rgba(30,43,37,.74);--glass-line:rgba(232,241,235,.12);--lens:rgba(240,98,77,.22);--glass-hi:rgba(255,255,255,.14)}}
+:root[data-theme="dark"]{--glass:rgba(30,43,37,.74);--glass-line:rgba(232,241,235,.12);--lens:rgba(240,98,77,.22);--glass-hi:rgba(255,255,255,.14)}
+@supports (transition-timing-function: linear(0, 1)){
+  :root{--spring:linear(0, .009, .035 2.1%, .141 4.4%, .723 12.9%, .938 16.7%, 1.017 19.4%, 1.065 22.4%, 1.077 25.3%, 1.066 28.6%, 1.026 34.3%, 1.004 39.9%, .995 47.2%, 1.001 64.6%, 1)}
+}
+.tabbar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:8;display:flex;justify-content:center;
+  padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none;transform:translateZ(0)}
+.tabbar-main{position:relative;flex:1 1 auto;max-width:440px;display:flex;min-width:0}
+.tabbar-pill,.home-btn{pointer-events:auto;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);
+  border:1px solid var(--glass-line);box-shadow:inset 0 1px .5px var(--glass-hi),0 10px 30px var(--shadow),0 1px 3px var(--shadow)}
+.tabbar-pill{position:relative;flex:1 1 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-radius:999px;padding:5px;transform-origin:27px 50%}
+.tab{position:relative;z-index:1;border:0;background:transparent;border-radius:999px;padding:7px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  color:var(--ink-2);min-width:0;font:inherit;-webkit-user-select:none;user-select:none}
+.tab svg{width:24px;height:24px}
+.tab-label{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tab[aria-current="page"],.tab.is-hover{color:var(--ketchup)}
+.tab .badge{top:1px;left:calc(50% + 6px)}
+.tab-lens{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / 5);border-radius:999px;background:var(--lens);z-index:0;
+  box-shadow:inset 0 1px .5px var(--glass-hi);transform:translate3d(0,0,0)}
+.tabbar-pill.no-sel .tab-lens{opacity:0}
+.home-btn{position:absolute;left:0;top:calc(50% - 27px);width:54px;height:54px;border-radius:50%;display:grid;place-items:center;color:var(--ketchup);padding:0;
+  opacity:0;visibility:hidden;transform:scale(.5);pointer-events:none}
+.home-btn svg{width:25px;height:25px}
+.home-btn.has-badge::after{content:"";position:absolute;top:9px;right:10px;width:10px;height:10px;border-radius:50%;background:var(--mustard);box-shadow:0 0 0 2px var(--surface)}
+.tabbar.is-collapsed .tabbar-pill{opacity:0;visibility:hidden;transform:scale(.3,.8);pointer-events:none}
+.tabbar.is-collapsed .home-btn{opacity:1;visibility:visible;transform:none;pointer-events:auto}
+@media (prefers-reduced-motion: no-preference){
+  .tab-lens{transition:transform 500ms var(--spring),opacity 200ms}
+  .tabbar-pill.is-dragging .tab-lens{transition:transform 90ms linear}
+  .tab{transition:color 160ms,transform 160ms}
+  .tab:active{transform:scale(.94)}
+  .tabbar-pill{transition:transform 540ms var(--spring),opacity 260ms ease,visibility 0s linear 0s}
+  .tabbar.is-collapsed .tabbar-pill{transition:transform 420ms var(--ease-in),opacity 220ms ease,visibility 0s linear 260ms}
+  .home-btn{transition:transform 300ms var(--ease-in),opacity 200ms ease,visibility 0s linear 220ms}
+  .tabbar.is-collapsed .home-btn{transition:transform 560ms var(--spring) 60ms,opacity 240ms ease 60ms,visibility 0s linear 0s}
+  .home-btn:active{transform:scale(.9)!important;transition-duration:120ms}
+}
+/* Hundene står stille mens du scroller, så telefonen bare trenger å flytte innholdet */
+html.is-scrolling .dog *{animation-play-state:paused!important}

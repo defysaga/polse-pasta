@@ -38,6 +38,12 @@ async function phone(name, scheme) {
   return p;
 }
 const shot = (p, n) => p.screenshot({ path: OUT + n + ".png" });
+// Trykk på en fane. Er menyen krympet, trykk først på den lille knappen.
+async function goTab(P, k) {
+  if (await P.$(".tabbar.is-collapsed")) { await P.click("#home-btn"); await P.waitForSelector(".tabbar:not(.is-collapsed)"); await P.waitForTimeout(350); }
+  await P.click('.tabbar .tab[data-k="' + k + '"]');
+  await P.waitForTimeout(120);
+}
 const log = (s) => console.log("  ✓ " + s);
 
 // A small real PNG to upload as a dinner photo
@@ -110,7 +116,7 @@ try {
   if (sheetOpen) { await B.click('#sheet .textbtn[data-act="close-sheet"]'); await B.waitForTimeout(400); }
   log("Kari avvises med feil nøkkel, kommer inn med riktig, og ser Mads i listen");
 
-  await B.click('.nav [data-k="middager"]');
+  await goTab(B, "middager");
   await B.waitForSelector(".drow");
   await B.click(".drow");
   await B.waitForSelector(".ph img");
@@ -123,7 +129,7 @@ try {
   log("Kari ser bildet og gir 4 stjerner");
 
   // Mads plings Kari
-  await A.click('.nav [data-k="pling"]');
+  await goTab(A, "pling");
   await A.click('[data-act="pick-pling"][data-k="handle"]');
   await A.fill("#fp-text", "parmesan og basilikum");
   await A.click('#f-pling [type=submit]');
@@ -142,7 +148,7 @@ try {
   log("Kari svarer med en klem, som dukker opp hos Mads");
 
   // Mads sees Kari's rating
-  await A.click('.nav [data-k="middager"]');
+  await goTab(A, "middager");
   await A.waitForTimeout(300);
   const avg = await A.textContent(".davg b");
   if (avg.trim() !== "4,5") throw new Error("snittet er " + avg);
@@ -150,7 +156,7 @@ try {
 
   // offline: write is queued and sent later
   await A.context().setOffline(true);
-  await A.click('.nav [data-k="pling"]');
+  await goTab(A, "pling");
   await A.click('[data-act="pick-pling"][data-k="natt"]');
   await A.click('#f-pling [type=submit]');
   await A.waitForTimeout(500);
@@ -164,7 +170,7 @@ try {
   // --- the dog ---
   const closeOv = async (P) => { while (await P.$('#ov:not([hidden]) [data-act="ov-close"]')) { await P.click('#ov [data-act="ov-close"]'); await P.waitForTimeout(450); } };
   await closeOv(A); await closeOv(B);
-  await A.click('.nav [data-k="polsa"]');
+  await goTab(A, "polsa");
   await A.waitForSelector('[data-act="feed"]');
   await A.click('[data-act="feed"]');
   await A.waitForSelector('[data-act="treat"]');
@@ -174,7 +180,7 @@ try {
   await A.waitForTimeout(300);
   await shot(A, "f1-polsa");
   log("Mads gir Pølsa mat (streak 1) og en godbit");
-  await B.click('.nav [data-k="polsa"]');
+  await goTab(B, "polsa");
   await B.waitForFunction(() => /Mads ga Pølsa mat/.test(document.querySelector(".pet-status")?.textContent || ""), null, { timeout: 20000 });
   log("Kari ser at Mads har gitt Pølsa mat");
 
@@ -245,7 +251,7 @@ try {
 
   // --- video preview ---
   await closeOv(A);
-  await A.click('.nav [data-k="inspo"]');
+  await goTab(A, "inspo");
   await A.click('#v-inspo .sec-head [data-act="add-link"]');
   await A.fill("#fl-url", "https://vm.tiktok.com/ZMabc123/");
   await A.waitForSelector("#fl-prev .prevbox img", { timeout: 8000 });
@@ -284,7 +290,7 @@ try {
   if (!shopTxt.includes("2 pk smør")) throw new Error("smør: " + shopTxt.join(" | "));
   log("handlelisten: " + shopTxt.join(" · "));
   await closeOv(B);
-  await B.click('.nav [data-k="handle"]');
+  await goTab(B, "handle");
   await B.waitForFunction(() => document.querySelectorAll("#v-handle .shopi").length === 6, null, { timeout: 20000 });
   await B.click('#v-handle .shopi label:has-text("Kjøttdeig")');
   await B.waitForTimeout(400);
@@ -292,7 +298,7 @@ try {
   await A.waitForFunction(() => [...document.querySelectorAll("#v-handle .shopi.done")].some((e) => /Kjøttdeig/.test(e.textContent)), null, { timeout: 20000 });
   await shot(A, "g3-handleliste-lys");
   log("Kari krysser av kjøttdeigen, og den blir krysset av hos Mads også");
-  await A.click('.nav [data-k="pling"]');
+  await goTab(A, "pling");
   await A.click('[data-act="pick-pling"][data-k="handle"]');
   await A.waitForSelector("#fp-attach");
   await A.click('#f-pling [type=submit]');
@@ -302,6 +308,32 @@ try {
   await shot(B, "g4-pling-liste");
   await B.click('[data-act="ov-shop"]');
   log("«Kan du handle?» med handlelisten vedlagt: " + ovText.trim());
+
+  // --- the menu ---
+  await closeOv(A);
+  await goTab(A, "polsa");
+  await A.waitForTimeout(300);
+  const lens0 = await A.$eval("#tab-lens", (e) => e.style.transform);
+  if (!/translate3d\(400/.test(lens0)) throw new Error("linsen står ikke på Pølsa: " + lens0);
+  await shot(A, "h1-meny");
+  await A.mouse.move(195, 400);
+  for (let i = 0; i < 8; i++) { await A.mouse.wheel(0, 120); await A.waitForTimeout(60); }
+  await A.waitForSelector(".tabbar.is-collapsed", { timeout: 3000 });
+  await A.waitForTimeout(700);
+  await shot(A, "h2-krympet");
+  const homeIcon = await A.$eval("#home-btn", (e) => e.dataset.k);
+  if (homeIcon !== "polsa") throw new Error("knappen viser " + homeIcon);
+  await A.click("#home-btn");
+  await A.waitForSelector(".tabbar:not(.is-collapsed)");
+  await A.waitForTimeout(400);
+  await goTab(A, "inspo");
+  await A.waitForTimeout(600);
+  const lens1 = await A.$eval("#tab-lens", (e) => e.style.transform);
+  if (!/translate3d\(0(\.0+)?%/.test(lens1)) throw new Error("linsen flyttet seg ikke: " + lens1);
+  log("menyen: linsen følger fanen, menyen krymper når du scroller ned og kommer tilbake med knappen");
+  await B.evaluate(() => window.scrollTo(0, 0));
+  await B.waitForTimeout(300);
+  await shot(B, "h3-meny-mork");
 
   await A.click(".duo");
   await A.waitForSelector("#keytext");

@@ -68,6 +68,7 @@ Varsler på iPhone krever iOS 16.4 eller nyere, og at appen er åpnet fra hjemsk
 - **Forhåndsvisning av videoer:** lim inn en lenke, så hentes bilde og tittel av seg selv. Trykk på kortet for å se videoen i appen. TikTok virker best. For Instagram kommer bildet frem når Instagram tillater det.
 - **Oppskrift fra videoen:** trykk på et kort i Inspo og så **Lag oppskrift**. Appen leser teksten som står til videoen og lager ingredienser og steg for to. Står ikke alt i teksten, foreslår den en vanlig oppskrift på retten og sier fra om det. Dere kan også skrive eller rette oppskriften selv.
 - **Handleliste:** huk av det dere trenger i oppskriften og trykk **Legg i handlelisten**. Listen er felles, så det én krysser av i butikken, blir krysset av hos den andre også. Like varer slås sammen. Del eller kopier listen til Notater eller appen til butikken, og send den med «Kan du handle?»-plingen.
+- **Menyen** nederst er en svevende glass-meny, som i Radar. Linsen glir til fanen du velger, og du kan holde inne og dra fingeren over menyen for å bytte fane. Når du scroller nedover, krymper den til en liten knapp. Trykk på den, eller scroll helt opp, for å få menyen tilbake. Hver fane husker hvor langt ned du var, og trykker du på fanen du allerede står i, går du til toppen.
 - **Tall på app-ikonet:** antall plinger du ikke har sett.
 - **Uten nett:** appen åpner og viser alt den har hentet før. Det du legger inn, sendes når du er på nett igjen. Bilder krever nett.
 
