@@ -5,8 +5,11 @@ import zlib from "node:zlib";
 import { start, env } from "./dev-server.mjs";
 
 // Falsk AI for testen: svarer som Cloudflare sin modell ville gjort
+let aiImages = 0;
 env.AI = { run: async (model, input) => {
   await new Promise((r) => setTimeout(r, 700));
+  if (model.includes("flux")) { aiImages++; return { image: plate(aiImages).toString("base64") }; }
+  if (/photographer/.test(input.messages[0].content)) return { response: "Classic Norwegian beef lasagna with golden melted cheese" };
   const p = input.messages[1].content;
   if (!/Smash-tacos/.test(p)) throw new Error("ukjent rett i testen");
   return { response: { title: "Smash-tacos med lime-mayo", servings: 2, time: "25 min", fromCaption: false,
@@ -46,10 +49,28 @@ async function goTab(P, k) {
 }
 const log = (s) => console.log("  ✓ " + s);
 
+// «Matbilde» fra den falske AI-en: en tallerken på et bord
+function plate(seed) {
+  const w = 256, h = 256, raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) {
+    raw[y * (w * 3 + 1)] = 0;
+    for (let x = 0; x < w; x++) {
+      const o = y * (w * 3 + 1) + 1 + x * 3, d = Math.hypot(x - 128, y - 128);
+      let c = [150 + (x % 32 < 2 ? -20 : 0), 105, 70];
+      if (d < 100) c = [245, 240, 232];
+      if (d < 72) c = seed % 2 ? [205, 92 + (x * y) % 40, 40] : [196, 140, 60 + (x + y) % 50];
+      raw[o] = c[0]; raw[o + 1] = c[1]; raw[o + 2] = c[2];
+    }
+  }
+  return pngRaw(w, h, raw);
+}
 // A small real PNG to upload as a dinner photo
 function png(w, h) {
   const raw = Buffer.alloc((w * 3 + 1) * h);
   for (let y = 0; y < h; y++) { raw[y * (w * 3 + 1)] = 0; for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = 200 + (x % 50); raw[o + 1] = 90 + (y % 80); raw[o + 2] = 40; } }
+  return pngRaw(w, h, raw);
+}
+function pngRaw(w, h, raw) {
   const crc = (buf) => { let c, t = []; for (let n = 0; n < 256; n++) { c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } let r = 0xffffffff; for (const b of buf) r = t[(r ^ b) & 0xff] ^ (r >>> 8); return (r ^ 0xffffffff) >>> 0; };
   const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
@@ -308,6 +329,32 @@ try {
   await shot(B, "g4-pling-liste");
   await B.click('[data-act="ov-shop"]');
   log("«Kan du handle?» med handlelisten vedlagt: " + ovText.trim());
+
+  // --- pictures on the cards ---
+  await closeOv(A);
+  await goTab(A, "inspo");
+  await A.click('#v-inspo .sec-head [data-act="add-link"]');
+  await A.fill("#fl-url", "https://www.matprat.no/oppskrifter/tradisjon/lasagne/");
+  await A.fill("#fl-title", "Lasagne");
+  await A.click('#f-link [type=submit]');
+  await A.waitForSelector('.rcard:has-text("Lasagne") .rthumb img', { timeout: 15000 });
+  const chip = await A.textContent('.rcard:has-text("Lasagne") .aichip');
+  if (chip.trim() !== "AI-bilde") throw new Error("mangler AI-merke");
+  await A.evaluate(() => window.scrollTo(0, 0));
+  await A.waitForTimeout(400);
+  await shot(A, "i1-kort-med-bilder");
+  log("lenke fra vanlig nettside får et AI-bilde av retten av seg selv, merket «AI-bilde»");
+  const first = await A.getAttribute('.rcard:has-text("Lasagne") .rthumb img', "src");
+  await A.click('.rcard:has-text("Lasagne") [data-act="edit-link"]');
+  await A.waitForSelector("#cover-box");
+  await A.click('[data-act="cover-ai"]');
+  await A.waitForFunction((f) => { const i = document.querySelector("#cover-box .covprev img"); return i && i.getAttribute("src") !== f; }, first, { timeout: 15000 });
+  await shot(A, "i2-bytt-bilde");
+  await A.click("#sheet .x");
+  await A.waitForTimeout(300);
+  await B.click('.tabbar .tab[data-k="inspo"]').catch(() => {});
+  await B.waitForSelector('.rcard:has-text("Lasagne") .rthumb img', { timeout: 20000 });
+  log("«Lag nytt AI-bilde» bytter bildet, og Kari ser det nye bildet også");
 
   // --- the menu ---
   await closeOv(A);

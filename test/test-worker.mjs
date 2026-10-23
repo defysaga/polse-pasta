@@ -331,5 +331,68 @@ console.log("Oppskrifter");
   ok("handlelisten kan lagres");
 }
 
+console.log("Bilder på kortene");
+{
+  const realFetch = globalThis.fetch;
+  const jpg = new Uint8Array([0xff, 0xd8, 0xff, 9, 8, 7, 6, 0xff, 0xd9]);
+  const aiJpg = new Uint8Array([0xff, 0xd8, 0xff, 1, 1, 1, 1, 1, 0xff, 0xd9]);
+  const prompts = [];
+  let oembedOk = true;
+  globalThis.fetch = async (u, o) => {
+    const s = String(u instanceof Request ? u.url : u);
+    if (s.startsWith("https://www.tiktok.com/oembed")) return oembedOk
+      ? new Response(JSON.stringify({ title: "Kremet pasta #pasta", author_name: "Matglad", thumbnail_url: "https://p16-sign.tiktokcdn-eu.com/obj/t.jpeg" }), { headers: { "Content-Type": "application/json" } })
+      : new Response("blocked", { status: 403 });
+    if (s.startsWith("https://p16-sign.tiktokcdn-eu.com/")) return new Response(jpg, { headers: { "Content-Type": "image/jpeg" } });
+    if (s.startsWith("https://www.tiktok.com/") || s.startsWith("https://www.instagram.com/")) return new Response("nei", { status: 403 });
+    return realFetch(u, o);
+  };
+  env.AI = { run: async (model, input) => {
+    if (model.includes("flux")) { prompts.push(input.prompt); return { image: Buffer.from(aiJpg).toString("base64") }; }
+    if (model.includes("8b")) return { response: "\"Creamy red gochujang spaghetti topped with spring onions\"" };
+    throw new Error("ukjent modell " + model);
+  } };
+  try {
+    await call("/api/write", { method: "POST", key: K, body: { ops: [
+      { op: "set", coll: "links", id: "c1", data: { url: "https://www.tiktok.com/@matglad/video/7421123456789", platform: "tiktok", title: "Kremet pasta", createdAt: 1 } },
+      { op: "set", coll: "links", id: "c2", data: { url: "https://www.tiktok.com/@matglad/video/7421123456790", platform: "tiktok", title: "Gochujang-pasta", createdAt: 2 } },
+      { op: "set", coll: "links", id: "c3", data: { url: "https://matprat.no/oppskrifter/kos/lasagne/", platform: "web", title: "Lasagne", recipe: { photo: "Layered beef lasagna with bubbling golden cheese", ingredients: [], steps: [] }, createdAt: 3 } }
+    ] } });
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c1" } });
+    assert.equal(r.status, 200); assert.equal(r.data.kind, "video");
+    assert.deepEqual(Buffer.from((await call("/api/photo/" + r.data.docs[0].data.thumb)).data), Buffer.from(jpg));
+    assert.equal(r.data.docs[0].data.author, "Matglad");
+    assert.equal(prompts.length, 0);
+    ok("TikTok: bildet fra videoen brukes, uten AI");
+    oembedOk = false;
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c2" } });
+    assert.equal(r.data.kind, "ai");
+    assert.match(prompts[0], /Creamy red gochujang spaghetti topped with spring onions/);
+    assert.doesNotMatch(prompts[0], /"/);
+    assert.deepEqual(Buffer.from((await call("/api/photo/" + r.data.docs[0].data.thumb)).data), Buffer.from(aiJpg));
+    ok("TikTok sier nei: AI lager et matbilde av retten, med engelsk beskrivelse");
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3" } });
+    assert.equal(r.data.kind, "ai"); assert.match(prompts[1], /Layered beef lasagna/);
+    ok("vanlig nettside: beskrivelsen fra oppskriften brukes direkte");
+    const before = r.data.docs[0].data.thumb;
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3" } });
+    assert.equal(r.data.docs.length, 0);
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3", mode: "ai" } });
+    assert.notEqual(r.data.docs[0].data.thumb, before);
+    assert.equal((await call("/api/photo/" + before)).status, 404);
+    ok("har kortet bilde fra før, lages ikke nytt; «Lag nytt bilde» bytter og sletter det gamle");
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c2", mode: "video" } });
+    assert.equal(r.status, 502); assert.equal(r.data.code, "no_image");
+    assert.ok(r.data.docs[0].data.thumb, "beholder AI-bildet");
+    env.AI = { run: async () => { throw new Error("AiError: 3036: You have used up your daily free allocation of 10,000 neurons."); } };
+    await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "links", id: "c4", data: { url: "https://x.no/a", platform: "web", title: "Taco", createdAt: 4 } }] } });
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c4" } });
+    assert.equal(r.status, 429); assert.equal(r.data.code, "ai_quota");
+    const c4 = (await call("/api/sync?since=0", { key: K })).data.docs.find((d) => d.id === "c4");
+    assert.ok(c4.data.coverTried > 0);
+    ok("ingen bilde fra videoen eller brukt opp kvoten: forståelig feil, og forsøket noteres så det ikke prøves om og om igjen");
+  } finally { globalThis.fetch = realFetch; }
+}
+
 pushServer.close();
 console.log(`\nAlle ${passed} tester bestått.`);

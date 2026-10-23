@@ -193,7 +193,7 @@ async function api(path, opts) {
   catch (e) { throw { code: 'offline' }; }
   let data = null;
   try { data = await res.json(); } catch (e) {}
-  if (!res.ok) throw { code: (data && data.code) || 'http_' + res.status, status: res.status, message: data && data.message };
+  if (!res.ok) throw { code: (data && data.code) || 'http_' + res.status, status: res.status, message: data && data.message, docs: data && data.docs };
   return data;
 }
 function applyDocs(docs) {
@@ -262,8 +262,9 @@ function flush() {
   return flushing;
 }
 async function write(ops) {
-  applyLocal(ops); save(); changed();
+  applyLocal(ops); save();
   S.queue.push(...ops); LS.set('pp-queue', S.queue);
+  changed();
   const r = await flush();
   if (r.error) throw r.error;
   return r;
@@ -426,6 +427,7 @@ function changed() {
     if (S.sheet && S.sheet.type === 'dinner') renderDetail();
     if (S.sheet && S.sheet.type === 'quiz') renderQuizSheet();
     if (S.sheet && S.sheet.type === 'play') renderRecipeBox();
+    if (S.sheet && S.sheet.type === 'link') renderCoverBox();
     checkOverlay();
   } else if (S.stage === 'who') renderStart();
 }
@@ -507,7 +509,7 @@ function renderInspo() {
   if (q) list = list.filter(l => ((l.title || '') + ' ' + (l.note || '') + ' ' + (l.tags || []).join(' ')).toLowerCase().includes(q));
   if (!list.length) { grid.innerHTML = '<p class="none">Ingen treff. <button class="linkbtn" data-act="clear-f">Vis alle</button></p>'; return; }
   grid.innerHTML = '<div class="rgrid">' + list.map(l => linkCard(l, made[l.id])).join('') + '</div>';
-  backfillPreviews();
+  ensureCovers();
 }
 
 function linkCard(l, m) {
@@ -519,7 +521,9 @@ function linkCard(l, m) {
   return '<article class="rcard">'
     + '<button class="rthumb ' + tile + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc((canPlay ? 'Se videoen og oppskriften: ' : 'Se oppskriften: ') + title) + '">'
     + (img ? '<img src="' + photoUrl(img) + '" alt="" loading="lazy">' : '<span class="ini" aria-hidden="true">' + esc(title.trim().charAt(0).toUpperCase()) + '</span>')
+    + (!img && S.coverBusy === l.id ? '<span class="covwait">Lager bilde…</span>' : '')
     + '<span class="plat ' + esc(l.platform) + '">' + platLabel(l.platform) + '</span>'
+    + (img && img === l.thumb && l.thumbKind === 'ai' ? '<span class="aichip">AI-bilde</span>' : '')
     + (m ? '<span class="stamp">Laget' + (m.count > 1 ? ' ' + m.count + '×' : '') + (m.avg != null ? ' · ' + fmt1(m.avg) + '★' : '') + '</span>' : '')
     + '<span class="play">' + ICON.play + '</span>' + (l.recipe ? '<span class="rchip">Oppskrift</span>' : '') + '</button>'
     + '<div class="rbody"><h3>' + esc(title) + '</h3>'
@@ -793,6 +797,7 @@ function linkSheet(l) {
     + '<fieldset class="fld"><legend>Merkelapper</legend><div class="chipset">'
     + TAGS.map(t => '<label class="chip"><input type="checkbox" name="tags" value="' + t + '"' + (edit && (l.tags || []).includes(t) ? ' checked' : '') + '><span>' + t + '</span></label>').join('')
     + '</div></fieldset>'
+    + (edit ? coverEditBox(l) : '')
     + (!edit && partnerId() ? '<label class="toggle"><input type="checkbox" id="fl-pling" name="pling" checked><span>Send pling til ' + esc(partnerName()) + ' om denne</span></label>' : '')
     + '<p class="err" hidden></p>'
     + '<div class="sh-actions">'
@@ -1442,28 +1447,70 @@ function schedulePreview() {
     }
   }, 500);
 }
-let backfilling = false;
-const triedPreview = new Set();
-async function backfillPreviews() {
-  if (backfilling || !S.online || !S.key) return;
-  const l = S.links.find(x => (x.platform === 'tiktok' || x.platform === 'instagram') && !x.thumb && !x.previewTried && !triedPreview.has(x.id));
+/* The picture on each card: the video's own image, or an AI picture of the dish */
+let covering = false;
+const coverAsked = new Set();
+async function ensureCovers() {
+  // Vent til alt som er lagt inn er sendt, ellers finnes ikke lenken på serveren ennå
+  if (covering || flushing || S.queue.length || !S.online || !S.key || S.stage !== 'app') return;
+  const made = madeMap();
+  const l = S.links.find(x => !x.thumb && !(made[x.id] && made[x.id].photo) && !coverAsked.has(x.id) && !(x.coverTried && Date.now() - x.coverTried < 864e5));
   if (!l) return;
-  backfilling = true; triedPreview.add(l.id);
+  covering = true; coverAsked.add(l.id); S.coverBusy = l.id;
+  if (S.tab === 'inspo') changed();
   try {
-    const r = await api('/api/preview?url=' + encodeURIComponent(l.url));
-    const data = { previewTried: true };
-    if (r.photo) data.thumb = r.photo;
-    if (r.author) data.author = r.author;
-    if (r.embed) data.embed = r.embed;
-    if (/^Oppskrift fra /.test(l.title || '') && cleanTitle(r.title)) data.title = cleanTitle(r.title);
-    await write([{ op: 'merge', coll: 'links', id: l.id, data }]);
-  } catch (e) {}
-  backfilling = false;
-  setTimeout(backfillPreviews, 1200);
+    const r = await api('/api/cover', { method: 'POST', body: { linkId: l.id } });
+    applyDocs(r.docs); save();
+  } catch (e) {
+    if (e.docs) { applyDocs(e.docs); save(); }
+    if (e.code === 'not_found' || e.code === 'offline') coverAsked.delete(l.id); // prøv igjen senere
+  }
+  derive();
+  const nl = linkById(l.id);
+  if (nl && /^Oppskrift fra /.test(nl.title || '') && cleanTitle(nl.caption)) write([{ op: 'merge', coll: 'links', id: nl.id, data: { title: cleanTitle(nl.caption) } }]).catch(() => {});
+  covering = false; S.coverBusy = null;
+  changed();
+  setTimeout(ensureCovers, 600);
 }
+function coverEditBox(l) {
+  const st = S.sheet || {}, social = l.platform === 'tiktok' || l.platform === 'instagram';
+  return '<fieldset class="fld" id="cover-box"><legend>Bilde på kortet</legend><div class="coverrow">'
+    + '<span class="covprev t' + (hash(l.id) % 5 + 1) + '">' + (l.thumb ? '<img src="' + photoUrl(l.thumb) + '" alt="">' : '<span class="ini" aria-hidden="true">' + esc((l.title || '?').trim().charAt(0).toUpperCase()) + '</span>')
+    + (st.coverBusy ? '<span class="covwait">' + esc(st.coverBusy) + '</span>' : '') + '</span>'
+    + '<div class="covbtns">'
+    + '<label class="btn sm">Bruk eget bilde<input class="vh" id="cover-file" type="file" accept="image/*"' + (st.coverBusy ? ' disabled' : '') + '></label>'
+    + '<button type="button" class="btn sm" data-act="cover-ai" data-id="' + l.id + '"' + (st.coverBusy ? ' disabled' : '') + '>' + (l.thumbKind === 'ai' ? 'Lag nytt AI-bilde' : 'Lag bilde med AI') + '</button>'
+    + (social ? '<button type="button" class="btn sm ghost" data-act="cover-video" data-id="' + l.id + '"' + (st.coverBusy ? ' disabled' : '') + '>Hent bildet fra videoen</button>' : '')
+    + '</div></div>'
+    + (l.thumbKind === 'ai' ? '<p class="small">Bildet er laget av AI ut fra navnet på retten, så det ser ikke nødvendigvis helt likt ut som originalen.</p>' : '')
+    + (st.coverErr ? '<p class="err">' + esc(st.coverErr) + '</p>' : '')
+    + '</fieldset>';
+}
+function renderCoverBox() {
+  const st = S.sheet, box = $('#cover-box');
+  if (!st || st.type !== 'link' || !st.id || !box) return;
+  const l = linkById(st.id); if (!l) return;
+  box.outerHTML = coverEditBox(l);
+}
+async function coverFromServer(id, mode) {
+  const st = S.sheet; if (!st) return;
+  st.coverBusy = mode === 'ai' ? 'Lager bilde…' : 'Henter…'; st.coverErr = ''; renderCoverBox();
+  try {
+    const r = await api('/api/cover', { method: 'POST', body: { linkId: id, mode } });
+    applyDocs(r.docs); save();
+    toast(mode === 'ai' ? 'Nytt bilde er laget' : 'Bildet fra videoen er hentet');
+  } catch (e) {
+    if (e.docs) { applyDocs(e.docs); save(); }
+    if (S.sheet === st) st.coverErr = e.code === 'offline' ? 'Du må være på nett for å hente bilde.' : errMsg(e);
+  }
+  st.coverBusy = null;
+  changed(); renderCoverBox();
+}
+
 function playSheet(l) {
   const e = l.embed || embedFor(l.url);
   return '<div class="form"><h2 class="sh-title">' + esc(l.title) + '</h2>' + (l.author ? '<p class="small">' + esc(l.author) + ' på ' + platLabel(l.platform) + '</p>' : '')
+    + (!e && l.thumb ? '<img class="playimg" src="' + photoUrl(l.thumb) + '" alt="">' : '')
     + (e ? '<div class="vwrap ' + esc(l.platform) + '"><iframe src="' + esc(e) + '" title="' + esc(l.title) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>' : '')
     + '<div class="sh-actions"><a class="btn grow" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer">' + openLabel(l.platform) + ICON.ext + '</a>'
     + '<button class="btn primary grow" data-act="made" data-id="' + l.id + '">' + (madeMap()[l.id] ? 'Laget igjen' : 'Vi lagde den') + '</button></div>'
@@ -1796,6 +1843,8 @@ const ACT = {
     changed();
     if (S.sheet === st) renderRecipeBox();
   },
+  'cover-ai': b => coverFromServer(b.dataset.id, 'ai'),
+  'cover-video': b => coverFromServer(b.dataset.id, 'video'),
   'recipe-edit': b => { const l = linkById(b.dataset.id); if (l) openSheet(recipeEditSheet(l), { type: 'recipe-edit', id: l.id }, 'Oppskrift'); },
   'recipe-add': async b => {
     const l = linkById(b.dataset.id); if (!l || !l.recipe) return;
@@ -2063,6 +2112,20 @@ document.addEventListener('change', async e => {
     st.uploading = false;
     if (added) toast(added === 1 ? 'Bildet er lagt til' : added + ' bilder er lagt til');
     renderDetail(true);
+  } else if (t.id === 'cover-file' && S.sheet && S.sheet.type === 'link') {
+    const st = S.sheet, file = t.files && t.files[0], id = st.id;
+    t.value = '';
+    if (!file) return;
+    st.coverBusy = 'Laster opp…'; st.coverErr = ''; renderCoverBox();
+    try {
+      const pid = await upload(await compress(file));
+      const old = (linkById(id) || {}).thumb;
+      await write([{ op: 'merge', coll: 'links', id, data: { thumb: pid, thumbKind: 'own', coverTried: Date.now() } }]);
+      if (old && old !== pid) api(photoUrl(old), { method: 'DELETE' }).catch(() => {});
+      toast('Bildet er byttet');
+    } catch (err) { st.coverErr = err.code === 'offline' ? 'Du må være på nett for å laste opp bilder.' : errMsg(err); }
+    st.coverBusy = null;
+    renderCoverBox();
   } else if (t.dataset && t.dataset.shop) {
     const done = t.checked;
     write([{ op: 'merge', coll: 'shop', id: t.dataset.shop, data: { done, doneAt: done ? Date.now() : 0, doneBy: done ? S.me : null } }]).catch(e => toast(errMsg(e)));
