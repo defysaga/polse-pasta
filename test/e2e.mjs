@@ -2,7 +2,19 @@
 // node --no-warnings test/e2e.mjs
 import { chromium } from "/opt/npm-tools/node_modules/playwright/index.mjs";
 import zlib from "node:zlib";
-import { start } from "./dev-server.mjs";
+import { start, env } from "./dev-server.mjs";
+
+// Falsk AI for testen: svarer som Cloudflare sin modell ville gjort
+env.AI = { run: async (model, input) => {
+  await new Promise((r) => setTimeout(r, 700));
+  const p = input.messages[1].content;
+  if (!/Smash-tacos/.test(p)) throw new Error("ukjent rett i testen");
+  return { response: { title: "Smash-tacos med lime-mayo", servings: 2, time: "25 min", fromCaption: false,
+    ingredients: [{ name: "Kjøttdeig", amount: "400 g" }, { name: "Små tortillalefser", amount: "8 stk" }, { name: "Lime", amount: "1 stk" },
+      { name: "Majones", amount: "1 dl" }, { name: "Revet cheddar", amount: "100 g" }, { name: "Salt og pepper", amount: "", pantry: true }],
+    steps: ["Del kjøttdeigen i 8 kuler.", "Legg en kule på hver lefse og trykk flat med kjøttsiden ned i en varm panne.", "Stek 2–3 minutter, snu og dryss over ost.", "Rør majones med limesaft og -skall, og server på tacoene."],
+    tip: "Bruk en stekespade med litt tyngde for å presse kjøttet tynt." } };
+} };
 
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (u, o) => {
@@ -247,8 +259,49 @@ try {
   const src = await A.getAttribute('#sheet .vwrap iframe', 'src');
   if (src !== "https://www.tiktok.com/embed/v2/7421123456789") throw new Error("iframe " + src);
   log("TikTok-kortlenke: bilde og tittel hentes av seg selv, og videoen spilles av i appen");
-  await A.click('#sheet .x');
+
+  // --- recipe and shopping list ---
+  await A.click('[data-act="recipe-make"]');
+  await A.waitForSelector("#recipe-box .cooking");
+  await A.waitForSelector("#recipe-box .ings", { timeout: 15000 });
+  const nIng = (await A.$$("#recipe-box [data-ing]")).length;
+  const pantryUnchecked = await A.$eval('#recipe-box [data-ing="5"]', (x) => !x.checked);
+  if (nIng !== 6 || !pantryUnchecked) throw new Error("ingredienser " + nIng);
+  await A.click('#recipe-box label.ing:has-text("Revet cheddar")'); // har ost hjemme
+  await A.$eval("#sheet .panel", (p) => { p.scrollTop = 700; });
+  await A.waitForTimeout(200);
+  await shot(A, "g1-oppskrift");
+  await A.click('[data-act="recipe-add"]');
+  await A.waitForSelector('#recipe-box [data-act="tab"][data-k="handle"]');
+  log("«Lag oppskrift» gir 6 ingredienser og 4 steg; Mads tar bort osten og legger 4 varer i handlelisten");
+  await A.click('#recipe-box [data-act="tab"][data-k="handle"]');
+  await A.waitForSelector("#v-handle:not([hidden]) .shopi");
+  await A.fill("#fs-item", "melk, 2 pk smør, lime");
+  await A.click('#f-shopadd [type=submit]');
   await A.waitForTimeout(300);
+  const shopTxt = await A.$$eval("#v-handle .shopi .sn > span", (els) => els.map((e) => e.textContent.trim()));
+  if (shopTxt.length !== 6 || !shopTxt.some((t) => t === "1 stk + 1 lime".replace("1 lime", "") || /Lime/.test(t))) throw new Error("liste: " + shopTxt.join(" | "));
+  if (!shopTxt.includes("2 pk smør")) throw new Error("smør: " + shopTxt.join(" | "));
+  log("handlelisten: " + shopTxt.join(" · "));
+  await closeOv(B);
+  await B.click('.nav [data-k="handle"]');
+  await B.waitForFunction(() => document.querySelectorAll("#v-handle .shopi").length === 6, null, { timeout: 20000 });
+  await B.click('#v-handle .shopi label:has-text("Kjøttdeig")');
+  await B.waitForTimeout(400);
+  await shot(B, "g2-handleliste");
+  await A.waitForFunction(() => [...document.querySelectorAll("#v-handle .shopi.done")].some((e) => /Kjøttdeig/.test(e.textContent)), null, { timeout: 20000 });
+  await shot(A, "g3-handleliste-lys");
+  log("Kari krysser av kjøttdeigen, og den blir krysset av hos Mads også");
+  await A.click('.nav [data-k="pling"]');
+  await A.click('[data-act="pick-pling"][data-k="handle"]');
+  await A.waitForSelector("#fp-attach");
+  await A.click('#f-pling [type=submit]');
+  await B.waitForSelector('#ov:not([hidden]) [data-act="ov-shop"]', { timeout: 20000 });
+  const ovText = await B.textContent("#ov .ov-text");
+  if (!/Små tortillalefser/.test(ovText) || /Kjøttdeig/.test(ovText)) throw new Error("pling-tekst: " + ovText);
+  await shot(B, "g4-pling-liste");
+  await B.click('[data-act="ov-shop"]');
+  log("«Kan du handle?» med handlelisten vedlagt: " + ovText.trim());
 
   await A.click(".duo");
   await A.waitForSelector("#keytext");

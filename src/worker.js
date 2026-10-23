@@ -11,7 +11,7 @@
 // Hver halvtime sjekker serveren om hunden har fått mat i dag, og minner dere på det hvis ikke.
 
 const VERSION = 2;
-const COLLS = new Set(["members", "links", "dinners", "plings", "feeds", "scores", "quiz", "settings"]);
+const COLLS = new Set(["members", "links", "dinners", "plings", "feeds", "scores", "quiz", "settings", "shop"]);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DOC = 64 * 1024;
 const MAX_PHOTO = 1900 * 1024;
@@ -254,6 +254,69 @@ function okEndpoint(endpoint, allowLocal) {
   } catch (e) { return false; }
 }
 
+/* ---------- recipes from the video text, with Cloudflare Workers AI ---------- */
+const RECIPE_MODELS = ["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/meta/llama-3.1-8b-instruct"];
+const RECIPE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    servings: { type: "integer" },
+    time: { type: "string" },
+    fromCaption: { type: "boolean" },
+    ingredients: { type: "array", items: { type: "object", properties: { name: { type: "string" }, amount: { type: "string" }, pantry: { type: "boolean" } }, required: ["name", "amount"] } },
+    steps: { type: "array", items: { type: "string" } },
+    tip: { type: "string" }
+  },
+  required: ["title", "servings", "ingredients", "steps"]
+};
+export function recipePrompt(info) {
+  const system = "Du er en dyktig norsk kokk. Du skriver tydelige oppskrifter på norsk bokmål med metriske mål (g, dl, ss, ts, stk). "
+    + "Ingrediensene skal hete det de heter i en norsk dagligvarebutikk som Meny eller Rema 1000. Svar bare med JSON etter skjemaet.";
+  const user = "Video fra " + (info.platform === "instagram" ? "Instagram" : info.platform === "tiktok" ? "TikTok" : "nettet")
+    + (info.author ? " av " + info.author : "") + ".\n"
+    + "Navn på retten: " + (info.title || "ukjent") + "\n"
+    + "Teksten som står til videoen:\n\"\"\"\n" + (String(info.caption || "").slice(0, 2500) || "(ingen tekst)") + "\n\"\"\"\n"
+    + (info.note ? "Vårt eget notat: " + info.note + "\n" : "")
+    + "\nLag oppskriften på retten for 2 porsjoner. Hvis teksten har ingredienser eller mengder, bruk dem og sett fromCaption til true. "
+    + "Hvis teksten ikke sier nok, lag en vanlig, god oppskrift på retten og sett fromCaption til false. Ta hensyn til notatet vårt. "
+    + "Sett pantry til true for det de fleste har hjemme fra før (salt, pepper, olje, smør, sukker, hvetemel, vann). "
+    + "Skriv stegene kort, med ett steg per punkt. time er total tid, f.eks. \"30 min\". tip er ett kort tips, eller tom tekst.";
+  return [{ role: "system", content: system }, { role: "user", content: user }];
+}
+function firstJson(text) {
+  const t = String(text || "");
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  return a >= 0 && b > a ? t.slice(a, b + 1) : t;
+}
+export function cleanRecipe(r) {
+  if (!isObj(r)) throw new Error("ingen oppskrift");
+  const str = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+  const ingredients = (Array.isArray(r.ingredients) ? r.ingredients : []).slice(0, 30)
+    .map((x) => isObj(x) ? { name: str(x.name, 80), amount: str(x.amount, 40), pantry: !!x.pantry } : { name: str(x, 80), amount: "", pantry: false })
+    .filter((x) => x.name);
+  const steps = (Array.isArray(r.steps) ? r.steps : []).slice(0, 15).map((x) => str(x, 400).replace(/^\d+[.)]\s*/, "")).filter(Boolean);
+  const servings = Math.min(12, Math.max(1, parseInt(r.servings, 10) || 2));
+  return { title: str(r.title, 80), servings, time: str(r.time, 30), fromCaption: !!r.fromCaption, ingredients, steps, tip: str(r.tip, 300), source: "ai", at: Date.now() };
+}
+export async function makeRecipe(ai, info) {
+  const messages = recipePrompt(info);
+  let last = null;
+  for (const model of RECIPE_MODELS) {
+    try {
+      const out = await ai.run(model, { messages, response_format: { type: "json_schema", json_schema: RECIPE_SCHEMA }, max_tokens: 1800, temperature: 0.2 });
+      let r = out && out.response !== undefined ? out.response : out;
+      if (typeof r === "string") r = JSON.parse(firstJson(r));
+      const clean = cleanRecipe(r);
+      if (clean.ingredients.length && clean.steps.length) return Object.assign(clean, { model });
+      last = new Error("tom oppskrift");
+    } catch (e) {
+      last = e;
+      if (/3036|daily free allocation|neurons/i.test(String(e && e.message || e))) throw { code: "quota" };
+    }
+  }
+  throw { code: "ai_failed", message: String(last && last.message || last || "") };
+}
+
 /* ---------- the Durable Object ---------- */
 export class Hjem {
   constructor(ctx, env) {
@@ -341,6 +404,7 @@ export class Hjem {
       }
       if (path === "/api/test-push" && m === "POST") return await this.testPush(request, url);
       if (path === "/api/preview" && m === "GET") return await this.preview(url);
+      if (path === "/api/recipe" && m === "POST") return await this.recipe(request);
       return fail(404, "not_found", "Ukjent adresse.");
     } catch (e) {
       return fail(500, "server", "Noe gikk galt på serveren: " + String(e && e.message || e));
@@ -469,6 +533,41 @@ export class Hjem {
     return json({ ok: results.some((r) => r.ok), results });
   }
 
+  putDoc(coll, id, data) {
+    const updated = this.tick();
+    this.sql.exec(
+      "INSERT INTO docs (coll, id, data, updated, deleted) VALUES (?, ?, ?, ?, 0) ON CONFLICT(coll, id) DO UPDATE SET data = excluded.data, updated = excluded.updated, deleted = 0",
+      coll, id, JSON.stringify(data), updated
+    );
+    return { coll, id, updated, deleted: false, data };
+  }
+
+  /* Oppskrift: lag ingredienser og steg fra teksten til videoen, og lagre dem på oppskriften. */
+  async recipe(request) {
+    if (!this.env.AI) return fail(501, "no_ai", "Oppskrifter er ikke slått på på serveren.");
+    const b = await request.json().catch(() => ({}));
+    const id = String(b.linkId || "");
+    if (!ID_RE.test(id)) return fail(400, "bad_ref", "Ugyldig video.");
+    const link = this.getDoc("links", id);
+    if (!link) return fail(404, "not_found", "Fant ikke videoen.");
+    let caption = String(link.caption || ""), author = String(link.author || "");
+    if (!caption && (link.platform === "tiktok" || link.platform === "instagram")) {
+      try {
+        const p = link.platform === "tiktok" ? await tiktokPreview(link.url) : await instagramPreview(link.url);
+        if (p) { caption = String(p.title || ""); author = author || String(p.author || ""); }
+      } catch (e) {}
+    }
+    let recipe;
+    try { recipe = await makeRecipe(this.env.AI, { title: link.title, caption, author, note: link.note, platform: link.platform }); }
+    catch (e) {
+      if (e && e.code === "quota") return fail(429, "ai_quota", "Dagens gratis oppskrifter er brukt opp. Prøv igjen i morgen.");
+      return fail(502, "ai_failed", "Klarte ikke å lage oppskriften akkurat nå. Prøv igjen om litt.");
+    }
+    const fresh = this.getDoc("links", id) || link;
+    const doc = this.putDoc("links", id, Object.assign({}, fresh, { recipe, caption: caption.slice(0, 3000) }));
+    return json({ ok: true, recipe, docs: [doc] });
+  }
+
   getDoc(coll, id) {
     const r = this.sql.exec("SELECT data FROM docs WHERE coll = ? AND id = ? AND deleted = 0", coll, id).toArray()[0];
     return r ? JSON.parse(r.data) : null;
@@ -485,7 +584,7 @@ export class Hjem {
     else if (/(^|\.)instagram\.com$/.test(host)) p = await instagramPreview(u.href);
     if (!p) return json({ ok: true, found: false });
     const photo = p.thumb ? await this.storeRemoteImage(p.thumb) : null;
-    return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 300), author: String(p.author || "").slice(0, 80), photo, canonical: p.canonical || null, embed: p.embed || null });
+    return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 3000), author: String(p.author || "").slice(0, 80), photo, canonical: p.canonical || null, embed: p.embed || null });
   }
 
   async storeRemoteImage(src) {

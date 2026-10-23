@@ -21,6 +21,10 @@ class_name = "Hjem"
 tag = "v1"
 new_sqlite_classes = ["Hjem"]
 
+# Cloudflare sin AI (gratis kvote hver dag) lager oppskrifter fra teksten til videoene.
+[ai]
+binding = "AI"
+
 [observability]
 enabled = true
 

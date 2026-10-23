@@ -61,6 +61,20 @@
     <div id="din-list"></div>
   </section>
 
+  <section class="view" id="v-handle" aria-labelledby="h-handle" hidden>
+    <div class="sec-head">
+      <h2 id="h-handle">Handleliste</h2>
+    </div>
+    <p class="sec-sub">Felles liste for dere begge. Det én krysser av, forsvinner hos den andre også.</p>
+    <form class="shopadd" id="f-shopadd" novalidate>
+      <label class="vh" for="fs-item">Legg til vare</label>
+      <input class="inp" id="fs-item" name="item" maxlength="200" autocomplete="off" placeholder="Legg til, f.eks. melk, 2 pk smør">
+      <button class="btn primary" type="submit">Legg til</button>
+    </form>
+    <div id="shop-list"></div>
+    <div id="shop-tools"></div>
+  </section>
+
   <section class="view" id="v-pling" aria-labelledby="h-pling" hidden>
     <div class="sec-head">
       <h2 id="h-pling">Pling</h2>
@@ -90,6 +104,8 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>Inspo</button>
     <button data-act="tab" data-k="middager">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.6 3.5v5a1.9 1.9 0 0 0 1.9 1.9V21M4.5 3.5v4.5M6.4 3.5v5M21.4 3.5c-1.6 1-2.1 3-2.1 6.5h2.1V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Middager</button>
+    <button data-act="tab" data-k="handle">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.4l2.2 10.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.6" fill="currentColor"/><circle cx="17" cy="19.5" r="1.6" fill="currentColor"/></svg>Handle</button>
     <button data-act="tab" data-k="pling">
       <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="16.2" rx="5" ry="4.2" fill="currentColor"/><ellipse cx="5.4" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/><ellipse cx="9.3" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="14.7" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="18.6" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/></svg>Pling<span class="badge" id="pl-badge" hidden></span></button>
     <button data-act="tab" data-k="polsa">

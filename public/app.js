@@ -154,13 +154,13 @@ function dog(v, live) {
 }
 
 /* ---------- state & local storage ---------- */
-const EMPTY = () => ({ members: {}, links: {}, dinners: {}, plings: {}, feeds: {}, scores: {}, quiz: {}, settings: {} });
+const EMPTY = () => ({ members: {}, links: {}, dinners: {}, plings: {}, feeds: {}, scores: {}, quiz: {}, settings: {}, shop: {} });
 const S = {
   key: LS.get('pp-key', null), me: LS.get('pp-me', null), vapid: LS.get('pp-vapid', null),
   docs: Object.assign(EMPTY(), LS.get('pp-docs', {})), since: LS.get('pp-since', 0), queue: LS.get('pp-queue', []),
   members: {}, links: [], dinners: [], plings: [], quiz: [],
   stage: 'boot', online: true, synced: false, push: 'unknown',
-  tab: /polsa/.test(location.hash) ? 'polsa' : /pling/.test(location.hash) ? 'pling' : 'inspo', lf: 'alle', tagf: null, q: '', ds: 'nyeste',
+  tab: /polsa/.test(location.hash) ? 'polsa' : /pling/.test(location.hash) ? 'pling' : /handle/.test(location.hash) ? 'handle' : 'inspo', lf: 'alle', tagf: null, q: '', ds: 'nyeste',
   sheet: null, ovId: null, dismissed: new Set(), booted: Date.now(), startErr: '', who: null
 };
 const canW = () => !!(S.key && S.me);
@@ -419,6 +419,7 @@ function changed() {
     render();
     if (S.sheet && S.sheet.type === 'dinner') renderDetail();
     if (S.sheet && S.sheet.type === 'quiz') renderQuizSheet();
+    if (S.sheet && S.sheet.type === 'play') renderRecipeBox();
     checkOverlay();
   } else if (S.stage === 'who') renderStart();
 }
@@ -427,7 +428,7 @@ function render() {
   $('#app').hidden = !inApp;
   $('#start').hidden = inApp;
   if (!inApp) { renderStart(); return; }
-  ['inspo', 'middager', 'pling', 'polsa'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
+  ['inspo', 'middager', 'handle', 'pling', 'polsa'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
   $('#nav-polsa-l').textContent = pet().name;
   document.querySelectorAll('.nav [data-act="tab"]').forEach(b => {
     if (b.dataset.k === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
@@ -440,6 +441,7 @@ function render() {
   if (S.tab === 'inspo') renderInspo();
   else if (S.tab === 'middager') renderDinners();
   else if (S.tab === 'polsa') renderPolsa();
+  else if (S.tab === 'handle') renderShop();
   else renderPling();
 }
 
@@ -505,13 +507,11 @@ function linkCard(l, m) {
   const img = (m && m.photo) || l.thumb;
   const canPlay = !!(l.embed || embedFor(l.url));
   return '<article class="rcard">'
-    + (canPlay
-      ? '<button class="rthumb ' + tile + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc('Spill av: ' + title) + '">'
-      : '<a class="rthumb ' + tile + '" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer" aria-label="' + esc(openLabel(l.platform) + ': ' + title) + '">')
+    + '<button class="rthumb ' + tile + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc((canPlay ? 'Se videoen og oppskriften: ' : 'Se oppskriften: ') + title) + '">'
     + (img ? '<img src="' + photoUrl(img) + '" alt="" loading="lazy">' : '<span class="ini" aria-hidden="true">' + esc(title.trim().charAt(0).toUpperCase()) + '</span>')
     + '<span class="plat ' + esc(l.platform) + '">' + platLabel(l.platform) + '</span>'
     + (m ? '<span class="stamp">Laget' + (m.count > 1 ? ' ' + m.count + '×' : '') + (m.avg != null ? ' · ' + fmt1(m.avg) + '★' : '') + '</span>' : '')
-    + '<span class="play">' + ICON.play + '</span>' + (canPlay ? '</button>' : '</a>')
+    + '<span class="play">' + ICON.play + '</span>' + (l.recipe ? '<span class="rchip">Oppskrift</span>' : '') + '</button>'
     + '<div class="rbody"><h3>' + esc(title) + '</h3>'
     + (l.note ? '<p class="rnote">' + esc(l.note) + '</p>' : '')
     + (l.author ? '<p class="rauthor">' + esc(l.author) + '</p>' : '')
@@ -1029,15 +1029,21 @@ function plingSheet(kind) {
     + '<h2 class="sh-title center">' + (kind === 'egen' ? 'Egen melding' : p.title) + '</h2>'
     + (p.msg ? '<p class="muted center">' + esc(p.msg) + '</p>' : '')
     + (p.input ? '<label class="fld"><span>' + p.label + (p.custom ? '' : ' <i>(valgfritt)</i>') + '</span><input class="inp" id="fp-text" name="text" maxlength="200" autocomplete="off" placeholder="' + esc(p.input) + '"></label>' : '')
+    + (kind === 'handle' && shopTodo().length ? '<label class="toggle"><input type="checkbox" id="fp-attach" name="attach" checked><span>Legg ved handlelisten (' + shopTodo().length + (shopTodo().length === 1 ? ' vare' : ' varer') + ')</span></label>' : '')
     + '<p class="err" hidden></p>'
     + '<button class="btn primary big" type="submit">Send til ' + esc(partnerName()) + '</button></form>';
 }
 async function submitPling(f) {
   const kind = f.dataset.kind, def = PLINGS[kind], btn = f.querySelector('[type=submit]');
-  const text = f.text ? f.text.value.trim() : '';
+  let text = f.text ? f.text.value.trim() : '', ref = null;
   if (def.custom && !text) return ferr(f, 'Skriv en melding først.');
+  if (f.attach && f.attach.checked) {
+    const names = shopTodo().map(i => i.name);
+    text = (text ? text + '. Pluss: ' : '') + names.slice(0, 12).join(', ') + (names.length > 12 ? ' og ' + (names.length - 12) + ' til' : '');
+    ref = { type: 'shop' };
+  }
   busy(btn, true, 'Sender…');
-  try { await sendPling(kind, text, null); closeSheet(); }
+  try { await sendPling(kind, text, ref); closeSheet(); }
   catch (e) { busy(btn, false); ferr(f, errMsg(e)); }
 }
 function markSeen(ids) {
@@ -1068,6 +1074,8 @@ function showOverlay(p, more) {
   } else if (p.ref && p.ref.type === 'quiz') {
     const q = S.quiz.find(x => x.id === p.ref.id);
     ref = q ? '<div class="ov-ref"><button class="btn sm primary" data-act="ov-quiz" data-id="' + q.id + '">' + (quizState(q).mine ? 'Svar nå' : 'Se runden') + '</button></div>' : '';
+  } else if (p.ref && p.ref.type === 'shop') {
+    ref = '<div class="ov-ref"><button class="btn sm primary" data-act="ov-shop">Se handlelisten</button></div>';
   } else if (p.ref && p.ref.type === 'game') {
     ref = '<div class="ov-ref"><button class="btn sm primary" data-act="ov-game">Spill dagens bane</button></div>';
   }
@@ -1446,14 +1454,109 @@ async function backfillPreviews() {
 function playSheet(l) {
   const e = l.embed || embedFor(l.url);
   return '<div class="form"><h2 class="sh-title">' + esc(l.title) + '</h2>' + (l.author ? '<p class="small">' + esc(l.author) + ' på ' + platLabel(l.platform) + '</p>' : '')
-    + '<div class="vwrap ' + esc(l.platform) + '"><iframe src="' + esc(e) + '" title="' + esc(l.title) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>'
+    + (e ? '<div class="vwrap ' + esc(l.platform) + '"><iframe src="' + esc(e) + '" title="' + esc(l.title) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>' : '')
     + '<div class="sh-actions"><a class="btn grow" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer">' + openLabel(l.platform) + ICON.ext + '</a>'
-    + '<button class="btn primary grow" data-act="made" data-id="' + l.id + '">' + (madeMap()[l.id] ? 'Laget igjen' : 'Vi lagde den') + '</button></div></div>';
+    + '<button class="btn primary grow" data-act="made" data-id="' + l.id + '">' + (madeMap()[l.id] ? 'Laget igjen' : 'Vi lagde den') + '</button></div>'
+    + '<div id="recipe-box">' + recipeBox(l) + '</div>'
+    + '<div class="sh-actions"><button class="btn ghost sm" data-act="edit-link" data-id="' + l.id + '">Endre eller slett videoen</button></div></div>';
+}
+
+/* ---------- recipes ---------- */
+function ingText(i) { return (i.amount ? i.amount + ' ' : '') + i.name; }
+function parseIng(line) {
+  line = String(line || '').replace(/^[-•*·\s]+/, '').replace(/\s+/g, ' ').trim();
+  const m = /^((?:ca\.?\s*)?[\d½¼¾⅓⅔.,\/\s–-]+\s*(?:g|kg|dl|cl|l|ml|ss|ts|stk|pk|pakke|pakker|boks|bokser|fedd|klype|klyper|neve|never|bunt|bunter|beger|skive|skiver|glass|kopp|kopper|blad|stilk|stilker|porsjon|porsjoner)?\.?)\s+(.+)$/i.exec(line);
+  return m ? { name: m[2].trim(), amount: m[1].trim(), pantry: false } : { name: line, amount: '', pantry: false };
+}
+function recipeBox(l) {
+  const st = S.sheet || {}, r = l.recipe;
+  const err = st.recipeErr ? '<p class="err" role="alert">' + esc(st.recipeErr) + '</p>' : '';
+  if (st.recipeBusy) return '<div class="recipe"><h3>Oppskrift</h3><div class="cooking">' + dog('klar', true) + '<p class="small">Leser teksten til videoen og skriver oppskriften. Det tar noen sekunder…</p></div></div>';
+  if (!r) {
+    const social = l.platform === 'tiktok' || l.platform === 'instagram';
+    return '<div class="recipe"><h3>Oppskrift</h3><p class="small">' + (social ? 'Appen leser teksten som står til videoen, og lager en oppskrift med ingredienser og steg for to.' : 'Appen lager en oppskrift ut fra navnet og notatet deres.') + '</p>'
+      + err + '<div class="sh-actions"><button class="btn primary" data-act="recipe-make" data-id="' + l.id + '">Lag oppskrift</button><button class="btn ghost" data-act="recipe-edit" data-id="' + l.id + '">Skriv den selv</button></div></div>';
+  }
+  const src = r.source === 'manual' ? 'Skrevet av dere' : r.fromCaption ? 'Fra teksten til videoen' : 'Forslag: teksten til videoen sa ikke alt, så sjekk mot videoen';
+  const added = st.added ? '<button class="btn" data-act="tab" data-k="handle">Lagt til. Se handlelisten</button>' : '<button class="btn primary" data-act="recipe-add" data-id="' + l.id + '">Legg i handlelisten</button>';
+  return '<div class="recipe"><div class="r-head"><h3>Oppskrift</h3><span class="r-meta">' + esc([r.servings ? r.servings + ' porsjoner' : '', r.time].filter(Boolean).join(' · ')) + '</span></div>'
+    + '<p class="r-src' + (r.fromCaption || r.source === 'manual' ? '' : ' guess') + '">' + esc(src) + '</p>'
+    + '<h4>Ingredienser</h4><div class="ings">' + (r.ingredients || []).map((i, k) => '<label class="ing"><input type="checkbox" data-ing="' + k + '"' + (i.pantry ? '' : ' checked') + '><span><b>' + esc(i.amount) + '</b> ' + esc(i.name) + (i.pantry ? ' <em>har dere sikkert</em>' : '') + '</span></label>').join('') + '</div>'
+    + '<div>' + added + '</div>'
+    + '<h4>Slik gjør du</h4><ol class="r-steps">' + (r.steps || []).map(x => '<li>' + esc(x) + '</li>').join('') + '</ol>'
+    + (r.tip ? '<p class="r-tip"><b>Tips:</b> ' + esc(r.tip) + '</p>' : '')
+    + err + '<div class="sh-actions"><button class="btn ghost sm" data-act="recipe-edit" data-id="' + l.id + '">Endre oppskriften</button>' + (r.source === 'manual' ? '' : '<button class="btn ghost sm" data-act="recipe-make" data-id="' + l.id + '">Lag på nytt</button>') + '</div></div>';
+}
+function renderRecipeBox() {
+  const st = S.sheet; if (!st || st.type !== 'play') return;
+  const l = linkById(st.id), box = $('#recipe-box');
+  if (!l || !box) return;
+  const ae = document.activeElement;
+  if (ae && box.contains(ae) && ae.tagName === 'INPUT' && ae.type !== 'checkbox') return;
+  box.innerHTML = recipeBox(l);
+}
+function recipeEditSheet(l) {
+  const r = l.recipe || {};
+  return '<form class="form" id="f-recipe" data-id="' + l.id + '" novalidate><h2 class="sh-title">Oppskrift: ' + esc(l.title) + '</h2>'
+    + '<div class="two"><label class="fld"><span>Porsjoner</span><input class="inp" id="fr-serv" name="serv" type="number" inputmode="numeric" min="1" max="12" value="' + esc(r.servings || 2) + '"></label>'
+    + '<label class="fld"><span>Tid</span><input class="inp" id="fr-time" name="time" maxlength="30" placeholder="f.eks. 30 min" value="' + esc(r.time || '') + '"></label></div>'
+    + '<label class="fld"><span>Ingredienser <i>(én per linje, f.eks. «200 g spaghetti»)</i></span><textarea class="inp" id="fr-ings" name="ings" rows="8">' + esc((r.ingredients || []).map(ingText).join('\n')) + '</textarea></label>'
+    + '<label class="fld"><span>Slik gjør du <i>(ett steg per linje)</i></span><textarea class="inp" id="fr-steps" name="steps" rows="7">' + esc((r.steps || []).join('\n')) + '</textarea></label>'
+    + '<p class="err" hidden></p><button class="btn primary big" type="submit">Lagre oppskriften</button></form>';
+}
+
+/* ---------- shopping list ---------- */
+const normName = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function shopItems() {
+  return Object.entries(S.docs.shop).map(([id, d]) => Object.assign({}, d, { id }))
+    .sort((a, b) => (a.done - b.done) || (a.done ? (b.doneAt || 0) - (a.doneAt || 0) : (a.createdAt || 0) - (b.createdAt || 0)));
+}
+const shopTodo = () => shopItems().filter(i => !i.done);
+function shopOps(list, from) {
+  const open = shopTodo(), ops = [];
+  for (const i of list) {
+    const hit = open.find(x => normName(x.name) === normName(i.name));
+    if (hit) {
+      const amount = hit.amount && i.amount && hit.amount !== i.amount ? hit.amount + ' + ' + i.amount : (hit.amount || i.amount || '');
+      const fromList = Array.from(new Set([].concat(hit.from || [], from ? [from] : [])));
+      ops.push({ op: 'merge', coll: 'shop', id: hit.id, data: { amount, from: fromList } });
+      hit.amount = amount; hit.from = fromList;
+    } else {
+      const id = newId();
+      ops.push({ op: 'set', coll: 'shop', id, data: { name: i.name.slice(0, 80), amount: String(i.amount || '').slice(0, 60), from: from ? [from] : [], done: false, by: S.me, createdAt: Date.now() + ops.length } });
+      open.push({ id, name: i.name, amount: i.amount, from: from ? [from] : [] });
+    }
+  }
+  return ops;
+}
+function shopText() {
+  const t = shopTodo();
+  return 'Handleliste fra Pølse & Pasta:\n' + t.map(i => '• ' + ingText(i)).join('\n');
+}
+function renderShop() {
+  const items = shopItems(), todo = items.filter(i => !i.done), done = items.filter(i => i.done);
+  const row = i => '<li class="shopi' + (i.done ? ' done' : '') + '"><label><input type="checkbox" data-shop="' + i.id + '"' + (i.done ? ' checked' : '') + '><span class="sn"><span>' + (i.amount ? '<b>' + esc(i.amount) + '</b> ' : '') + esc(i.name) + '</span>'
+    + ((i.from || []).length ? '<small>til ' + esc(i.from.join(', ')) + '</small>' : '') + '</span></label>'
+    + '<button class="iconbtn" data-act="shop-del" data-id="' + i.id + '" aria-label="Fjern ' + esc(i.name) + '">' + ICON.x + '</button></li>';
+  const list = $('#shop-list'), tools = $('#shop-tools');
+  if (!items.length) {
+    list.innerHTML = !S.synced ? loading('Henter handlelisten…') : emptyBox('handle', 'Handlelisten er tom', 'Skriv inn varer over, eller åpne en video i Inspo og trykk «Legg i handlelisten» på oppskriften.');
+    tools.innerHTML = '';
+    return;
+  }
+  list.innerHTML = (todo.length ? '<ul class="shop">' + todo.map(row).join('') + '</ul>' : '<p class="none">Alt er handlet. Godt jobba!</p>')
+    + (done.length ? '<h3 class="sub-h">Handlet</h3><ul class="shop">' + done.map(row).join('') + '</ul>' : '');
+  tools.innerHTML = '<div class="funcard"><h3 class="fc-t">Handle på nett eller i butikken</h3>'
+    + '<p class="small">Del listen til Notater, Meldinger eller appen til butikken, eller ta den med i butikken og kryss av her mens dere handler.</p>'
+    + '<div class="set-row">' + (navigator.share ? '<button class="btn primary" data-act="shop-share">Del listen</button>' : '') + '<button class="btn" data-act="shop-copy">Kopier listen</button>'
+    + '<a class="btn ghost" href="https://meny.no/" target="_blank" rel="noopener noreferrer">Meny' + ICON.ext + '</a><a class="btn ghost" href="https://oda.com/no/" target="_blank" rel="noopener noreferrer">Oda' + ICON.ext + '</a></div>'
+    + (done.length ? '<button class="linkbtn qall" data-act="shop-clear">Fjern det som er handlet (' + done.length + ')</button>' : '')
+    + '</div>';
 }
 
 /* ---------- events ---------- */
 const ACT = {
-  'tab': b => { S.tab = b.dataset.k; render(); window.scrollTo({ top: 0 }); },
+  'tab': b => { if (S.sheet) closeSheet(); S.tab = b.dataset.k; render(); window.scrollTo({ top: 0 }); },
   'lf': b => { S.lf = b.dataset.k; renderInspo(); },
   'tagf': b => { S.tagf = S.tagf === b.dataset.k ? null : b.dataset.k; renderInspo(); },
   'clear-f': () => { S.lf = 'alle'; S.tagf = null; S.q = ''; const q = $('#q-inspo'); if (q) q.value = ''; renderInspo(); },
@@ -1555,6 +1658,39 @@ const ACT = {
   'ov-rate': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'middager'; render(); openDinner(id); },
   'ov-quiz': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'polsa'; render(); openQuiz(id); },
   'ov-game': () => { closeOverlay(false); S.tab = 'polsa'; render(); openGame(); },
+  'ov-shop': () => { closeOverlay(false); S.tab = 'handle'; render(); window.scrollTo({ top: 0 }); },
+  'recipe-make': async b => {
+    const st = S.sheet, id = b.dataset.id; if (!st) return;
+    st.recipeBusy = true; st.recipeErr = ''; st.added = false; renderRecipeBox();
+    try {
+      const r = await api('/api/recipe', { method: 'POST', body: { linkId: id } });
+      applyDocs(r.docs); save();
+    } catch (e) {
+      if (S.sheet === st) st.recipeErr = e.code === 'offline' ? 'Du må være på nett for å lage oppskriften.' : errMsg(e);
+    }
+    st.recipeBusy = false;
+    changed();
+    if (S.sheet === st) renderRecipeBox();
+  },
+  'recipe-edit': b => { const l = linkById(b.dataset.id); if (l) openSheet(recipeEditSheet(l), { type: 'recipe-edit', id: l.id }, 'Oppskrift'); },
+  'recipe-add': async b => {
+    const l = linkById(b.dataset.id); if (!l || !l.recipe) return;
+    const picked = [...document.querySelectorAll('#recipe-box [data-ing]')].filter(x => x.checked).map(x => l.recipe.ingredients[+x.dataset.ing]).filter(Boolean);
+    if (!picked.length) return toast('Huk av det dere trenger å kjøpe først.');
+    try {
+      const r = await write(shopOps(picked, l.title));
+      if (S.sheet) S.sheet.added = true;
+      renderRecipeBox();
+      toast(r.queued ? QUEUED : 'La til ' + picked.length + (picked.length === 1 ? ' vare' : ' varer') + ' i handlelisten');
+    } catch (e) { toast(errMsg(e)); }
+  },
+  'shop-del': b => { write([{ op: 'delete', coll: 'shop', id: b.dataset.id }]).catch(e => toast(errMsg(e))); },
+  'shop-clear': () => {
+    const ops = shopItems().filter(i => i.done).map(i => ({ op: 'delete', coll: 'shop', id: i.id }));
+    if (ops.length) write(ops).then(() => toast('Ryddet')).catch(e => toast(errMsg(e)));
+  },
+  'shop-share': async () => { try { await navigator.share({ title: 'Handleliste', text: shopText() }); } catch (e) {} },
+  'shop-copy': () => copyText(shopText()),
   'feed': async () => {
     const t = today();
     if (S.docs.feeds[t]) return renderPolsa();
@@ -1664,6 +1800,21 @@ document.addEventListener('submit', async e => {
     write([{ op: 'merge', coll: 'dinners', id, data: { title, madeOn } }])
       .then(() => { toast('Lagret'); if (S.sheet) S.sheet.openMore = false; renderDetail(true); })
       .catch(err => ferr(f, errMsg(err)));
+  } else if (f.id === 'f-shopadd') {
+    const parts = f.item.value.split(/[,\n;]+/).map(x => x.trim()).filter(Boolean);
+    if (!parts.length) return;
+    try { const r = await write(shopOps(parts.map(parseIng), null)); f.item.value = ''; if (r.queued) toast(QUEUED); }
+    catch (err) { toast(errMsg(err)); }
+    f.item.focus();
+  } else if (f.id === 'f-recipe') {
+    const id = f.dataset.id, l = linkById(id); if (!l) return;
+    const ingredients = f.ings.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 40).map(parseIng);
+    const steps = f.steps.value.split('\n').map(x => x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean).slice(0, 20);
+    if (!ingredients.length) return ferr(f, 'Skriv minst én ingrediens.');
+    const old = l.recipe || {};
+    const recipe = { title: l.title, servings: Math.min(12, Math.max(1, parseInt(f.serv.value, 10) || 2)), time: f.time.value.trim().slice(0, 30), ingredients, steps, tip: old.tip || '', source: 'manual', fromCaption: false, at: Date.now() };
+    try { const r = await write([{ op: 'merge', coll: 'links', id, data: { recipe: null } }, { op: 'merge', coll: 'links', id, data: { recipe } }]); toast(r.queued ? QUEUED : 'Oppskriften er lagret'); openSheet(playSheet(linkById(id)), { type: 'play', id }, l.title); }
+    catch (err) { ferr(f, errMsg(err)); }
   } else if (f.id === 'f-pet') {
     const name = f.pname.value.trim().slice(0, 20) || 'Pølsa';
     let first = f.first.value, last = f.last.value;
@@ -1788,6 +1939,9 @@ document.addEventListener('change', async e => {
     st.uploading = false;
     if (added) toast(added === 1 ? 'Bildet er lagt til' : added + ' bilder er lagt til');
     renderDetail(true);
+  } else if (t.dataset && t.dataset.shop) {
+    const done = t.checked;
+    write([{ op: 'merge', coll: 'shop', id: t.dataset.shop, data: { done, doneAt: done ? Date.now() : 0, doneBy: done ? S.me : null } }]).catch(e => toast(errMsg(e)));
   } else if (t.dataset && t.dataset.actChange === 'again') {
     setMyRating(t.dataset.id, { again: t.value });
   }
@@ -1808,7 +1962,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('online', () => { S.online = true; if (S.stage === 'app') sync(); });
 window.addEventListener('offline', () => { S.online = false; if (S.stage === 'app') render(); });
 setInterval(() => { if (document.visibilityState === 'visible' && S.stage === 'app') sync(); }, 15000);
-window.addEventListener('hashchange', () => { if (S.stage !== 'app') return; if (/polsa/.test(location.hash)) S.tab = 'polsa'; else if (/pling/.test(location.hash)) S.tab = 'pling'; else return; render(); });
+window.addEventListener('hashchange', () => { if (S.stage !== 'app') return; if (/polsa/.test(location.hash)) S.tab = 'polsa'; else if (/pling/.test(location.hash)) S.tab = 'pling'; else if (/handle/.test(location.hash)) S.tab = 'handle'; else return; render(); });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
   navigator.serviceWorker.addEventListener('message', e => {

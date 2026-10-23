@@ -16,6 +16,7 @@ Appen er en **PWA**: en nettside som legges på hjemskjermen og oppfører seg so
 - **Databasen** er en Durable Object med SQLite hos Cloudflare: oppskrifter, middager, plinger, personer og bildene.
 - **Push-varsler:** når noen sender en pling, sender serveren varselet til den andres telefon med en gang (Web Push via Apple).
 - **Påminnelser:** hver halvtime sjekker serveren om hunden har fått mat i dag. Hvis ikke, får begge et varsel på tidspunktene dere har valgt (cron i `wrangler.toml`).
+- **Oppskrifter:** serveren sender teksten som står til videoen (og notatet deres) til Cloudflare sin AI (Workers AI, modellen Llama 3.3 70B), som skriver ingredienser og steg på norsk. Gratiskvoten holder til mange titalls oppskrifter om dagen.
 - **Forhåndsvisning:** serveren henter bilde og tittel for TikTok-lenker (TikTok sitt oEmbed) og Instagram-lenker (den offentlige embed-siden), og lagrer bildet hos seg.
 - **Husnøkkelen** holder appen privat. Den lages første gang appen åpnes, og begge skriver den inn én gang.
 - **GitHub → Cloudflare:** hver gang koden i `main` endres, legger Cloudflare den ut på nytt av seg selv.
@@ -65,6 +66,8 @@ Varsler på iPhone krever iOS 16.4 eller nyere, og at appen er åpnet fra hjemsk
 - **Pølsehopp:** hopp over kongler, brannhydranter, katter og vannpytter, og samle pølser. Fuglene flyr der du hopper, så der må du bli på bakken. Banen er lik for dere begge hver dag. Tar du ledelsen, får den andre en pling.
 - **Couple quiz:** «Hvem av oss?» (begge svarer, og dere ser om dere er enige), «Kjenner du meg?» (tilfeldig spørsmål om deg som den andre gjetter) og egne spørsmål, med eller uten svaralternativer. Den som får spørsmålet, får en pling, og poengene samles.
 - **Forhåndsvisning av videoer:** lim inn en lenke, så hentes bilde og tittel av seg selv. Trykk på kortet for å se videoen i appen. TikTok virker best. For Instagram kommer bildet frem når Instagram tillater det.
+- **Oppskrift fra videoen:** trykk på et kort i Inspo og så **Lag oppskrift**. Appen leser teksten som står til videoen og lager ingredienser og steg for to. Står ikke alt i teksten, foreslår den en vanlig oppskrift på retten og sier fra om det. Dere kan også skrive eller rette oppskriften selv.
+- **Handleliste:** huk av det dere trenger i oppskriften og trykk **Legg i handlelisten**. Listen er felles, så det én krysser av i butikken, blir krysset av hos den andre også. Like varer slås sammen. Del eller kopier listen til Notater eller appen til butikken, og send den med «Kan du handle?»-plingen.
 - **Tall på app-ikonet:** antall plinger du ikke har sett.
 - **Uten nett:** appen åpner og viser alt den har hentet før. Det du legger inn, sendes når du er på nett igjen. Bilder krever nett.
 

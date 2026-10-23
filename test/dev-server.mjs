@@ -8,6 +8,7 @@ import { makeEnv } from "./harness.mjs";
 const root = path.resolve(new URL("../public", import.meta.url).pathname);
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".webmanifest": "application/manifest+json", ".json": "application/json" };
 const { env, worker } = makeEnv();
+export { env };
 
 export function start(port = 8787) {
   const server = http.createServer(async (req, res) => {

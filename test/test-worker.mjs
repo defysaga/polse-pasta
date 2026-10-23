@@ -291,5 +291,45 @@ console.log("Forhåndsvisning");
   } finally { globalThis.fetch = realFetch; }
 }
 
+console.log("Oppskrifter");
+{
+  await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "links", id: "r1", data: {
+    url: "https://www.tiktok.com/@matglad/video/7421123456789", platform: "tiktok", title: "Gochujang-pasta", note: "Bytt fløte med kokosmelk",
+    caption: "Gochujang-pasta! 200 g spaghetti, 2 ss gochujang, 1 dl fløte, 2 fedd hvitløk #pasta", author: "Matglad", addedBy: "mads", createdAt: 1
+  } }] } });
+  assert.equal((await call("/api/recipe", { method: "POST", key: K, body: { linkId: "r1" } })).status, 501);
+  ok("uten AI på serveren: tydelig feilmelding");
+  const asked = [];
+  const good = { title: "Gochujang-pasta", servings: 2, time: "20 min", fromCaption: true,
+    ingredients: [{ name: "Spaghetti", amount: "200 g" }, { name: "Gochujang", amount: "2 ss" }, { name: "Kokosmelk", amount: "1 dl" }, { name: "Hvitløk", amount: "2 fedd" }, { name: "Salt", amount: "", pantry: true }],
+    steps: ["1. Kok pastaen.", "Rør sammen saus.", "Bland alt."], tip: "Topp med vårløk." };
+  env.AI = { run: async (model, input) => { asked.push({ model, input }); return { response: good }; } };
+  r = await call("/api/recipe", { method: "POST", key: K, body: { linkId: "r1" } });
+  assert.equal(r.status, 200);
+  assert.equal(asked[0].model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+  assert.equal(asked[0].input.response_format.type, "json_schema");
+  const prompt = asked[0].input.messages[1].content;
+  assert.match(prompt, /200 g spaghetti/); assert.match(prompt, /Bytt fløte med kokosmelk/);
+  assert.equal(r.data.recipe.ingredients.length, 5);
+  assert.equal(r.data.recipe.steps[0], "Kok pastaen.");
+  assert.equal(r.data.recipe.fromCaption, true);
+  const synced = (await call("/api/sync?since=0", { key: K })).data.docs.find((d) => d.coll === "links" && d.id === "r1");
+  assert.equal(synced.data.recipe.title, "Gochujang-pasta"); assert.equal(synced.data.note, "Bytt fløte med kokosmelk");
+  ok("oppskrift fra videoteksten og notatet lagres på videoen og synkes til begge");
+  env.AI = { run: async (model) => { if (model.includes("70b")) throw new Error("3040: out of capacity"); return { response: "Her er oppskriften:\n" + JSON.stringify(good) + "\nVelbekomme!" }; } };
+  r = await call("/api/recipe", { method: "POST", key: K, body: { linkId: "r1" } });
+  assert.equal(r.status, 200); assert.equal(r.data.recipe.model, "@cf/meta/llama-3.1-8b-instruct");
+  ok("hvis den store modellen er opptatt, brukes en mindre, og tekst rundt JSON tåles");
+  env.AI = { run: async () => { throw new Error("AiError: 3036: You have used up your daily free allocation of 10,000 neurons."); } };
+  r = await call("/api/recipe", { method: "POST", key: K, body: { linkId: "r1" } });
+  assert.equal(r.status, 429); assert.equal(r.data.code, "ai_quota");
+  env.AI = { run: async () => ({ response: { title: "x", servings: 2, ingredients: [], steps: [] } }) };
+  assert.equal((await call("/api/recipe", { method: "POST", key: K, body: { linkId: "r1" } })).status, 502);
+  assert.equal((await call("/api/recipe", { method: "POST", key: K, body: { linkId: "finnes-ikke" } })).status, 404);
+  ok("brukt opp dagens kvote, tomt svar og ukjent video gir forståelige feil");
+  assert.equal((await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "shop", id: "s1", data: { name: "Parmesan", amount: "100 g", done: false } }] } })).status, 200);
+  ok("handlelisten kan lagres");
+}
+
 pushServer.close();
 console.log(`\nAlle ${passed} tester bestått.`);
