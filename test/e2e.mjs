@@ -406,6 +406,8 @@ try {
   if (!/translate3d\(0(\.0+)?%/.test(lens0)) throw new Error("linsen står ikke på Hjem: " + lens0);
   if ((await A.$$(".tabbar .tab")).length !== 4) throw new Error("menyen skal ha fire faner");
   await shot(A, "h1-meny");
+  await A.evaluate(() => window.scrollTo(0, 0)); // Hjem husker hvor langt ned du var
+  await A.waitForTimeout(500);
   await A.mouse.move(195, 400);
   for (let i = 0; i < 8; i++) { await A.mouse.wheel(0, 120); await A.waitForTimeout(60); }
   await A.waitForSelector(".tabbar.is-collapsed", { timeout: 3000 });
