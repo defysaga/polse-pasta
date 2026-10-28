@@ -42,6 +42,12 @@ async function phone(name, scheme) {
 }
 const shot = (p, n) => p.screenshot({ path: OUT + n + ".png" });
 // Trykk på en fane. Er menyen krympet, trykk først på den lille knappen.
+// Send en pling fra startsiden. De sjeldne ligger under «Flere plinger».
+async function sendPling(P, k) {
+  await goTab(P, "hjem");
+  if (!["klem", "kyss"].includes(k) && !(await P.$("#pl-more[open]"))) await P.click("#pl-more summary");
+  await P.click('#v-hjem [data-act="send-pling"][data-k="' + k + '"]');
+}
 async function goTab(P, k) {
   if (await P.$(".tabbar.is-collapsed")) { await P.click("#home-btn"); await P.waitForSelector(".tabbar:not(.is-collapsed)"); await P.waitForTimeout(350); }
   await P.click('.tabbar .tab[data-k="' + k + '"]');
@@ -96,21 +102,31 @@ try {
   await A.click('#sheet .textbtn[data-act="close-sheet"]');
   await A.waitForTimeout(400);
   log("spørsmålet om varsler vises første gang");
+  if (!(await A.$('#v-hjem:not([hidden]) #pet-slot .petcard'))) throw new Error("appen startet ikke på startsiden");
+  await shot(A, "e2b-hjem-tom");
+  log("appen starter på startsiden med Pølsa og plinger");
 
-  await A.click('[data-act="add-link"]');
+  await goTab(A, "inspo");
+  await A.click('#v-inspo .sec-head [data-act="add-link"]');
   await A.fill("#fl-url", "Sjekk denne! https://www.tiktok.com/@matglad/video/7421 ");
   await A.waitForTimeout(100);
   if ((await A.inputValue("#fl-url")) !== "https://www.tiktok.com/@matglad/video/7421") throw new Error("URL ble ikke renset");
   await A.fill("#fl-title", "Kremet gochujang-pasta");
   await A.click('label.chip:has-text("Pasta")');
+  await A.click('#f-link label.chip.other');
+  await A.fill("#fl-other", "koreansk, sterk");
   await A.click('#f-link [type=submit]');
   await A.waitForSelector(".rcard");
-  log("lagrer en TikTok-lenke (lenken renses fra delingsteksten)");
+  const tagsNow = await A.$$eval("#inspo-tags .chip-b", (els) => els.map((e) => e.textContent.trim()));
+  if (!(tagsNow.includes("Koreansk") && tagsNow.includes("Sterk") && tagsNow.includes("Pasta"))) throw new Error("merkelapper: " + tagsNow.join(", "));
+  log("lagrer en TikTok-lenke (lenken renses) med «Pasta» og egne merkelapper under «Annet»: " + tagsNow.join(", "));
 
   await A.click('[data-act="made"]');
   await A.setInputFiles("#fd-photos", { name: "middag.png", mimeType: "image/png", buffer: png(900, 700) });
   await A.waitForSelector("#fd-prev figure");
   await A.click('#f-dinner [data-star="5"]');
+  await A.click("#f-dinner details.more summary");
+  if (!(await A.$('#f-dinner input[name=tags][value="Koreansk"]:checked'))) throw new Error("middagen arvet ikke merkelappene");
   await A.click('#f-dinner .seg label:has-text("Lage igjen")');
   await A.fill("#fd-comment", "Beste pastaen hittil");
   await A.click('#f-dinner [type=submit]');
@@ -150,23 +166,30 @@ try {
   log("Kari ser bildet og gir 4 stjerner");
 
   // Mads plings Kari
-  await goTab(A, "pling");
-  await A.click('[data-act="pick-pling"][data-k="handle"]');
+  await sendPling(A, "handle");
   await A.fill("#fp-text", "parmesan og basilikum");
   await A.click('#f-pling [type=submit]');
-  await A.waitForSelector(".pli.out");
+  await A.waitForSelector("#pl-log .pday");
   // Kari's app syncs on its own (every 15 s) and shows the pling
   const t0 = Date.now();
   await B.waitForSelector('#ov:not([hidden]) .ov-card', { timeout: 20000 });
   log("Mads sender «Kan du handle?» → dukker opp hos Kari etter " + Math.round((Date.now() - t0) / 1000) + " s uten at hun gjør noe");
   await B.waitForTimeout(1200);
   await shot(B, "e6-pling");
+  if (await B.$("#ov .ov-actions button:has-text(\"klem\")")) throw new Error("varselet ber fortsatt om klem");
   await B.click('[data-act="ov-reply"]');
+  await B.waitForSelector('#v-hjem:not([hidden]) #pl-main .kk-big');
+  const secTop = await B.$eval("#pling-sec", (e) => e.getBoundingClientRect().top);
+  if (secTop > 300) throw new Error("«Svar» viste ikke plingene, toppen er " + secTop);
+  await shot(B, "e6b-svar");
+  await B.click("#pl-main .kk-big.kyss");
   await A.waitForSelector('#ov:not([hidden]) .ov-card', { timeout: 20000 });
   await A.waitForTimeout(1200);
-  await shot(A, "e7-klem");
+  const ovTitle = await A.textContent("#ov h2");
+  if (ovTitle.trim() !== "Kyss") throw new Error("Mads fikk " + ovTitle);
+  await shot(A, "e7-kyss");
   await A.click('[data-act="ov-close"]');
-  log("Kari svarer med en klem, som dukker opp hos Mads");
+  log("«Svar» tar Kari til plingene på startsiden, og ett trykk på Kyss sender det til Mads");
 
   // Mads sees Kari's rating
   await goTab(A, "middager");
@@ -177,9 +200,7 @@ try {
 
   // offline: write is queued and sent later
   await A.context().setOffline(true);
-  await goTab(A, "pling");
-  await A.click('[data-act="pick-pling"][data-k="natt"]');
-  await A.click('#f-pling [type=submit]');
+  await sendPling(A, "natt");
   await A.waitForTimeout(500);
   const toastTxt = await A.textContent("#toast");
   if (!/nett igjen/.test(toastTxt)) throw new Error("ingen kø-melding: " + toastTxt);
@@ -191,18 +212,19 @@ try {
   // --- the dog ---
   const closeOv = async (P) => { while (await P.$('#ov:not([hidden]) [data-act="ov-close"]')) { await P.click('#ov [data-act="ov-close"]'); await P.waitForTimeout(450); } };
   await closeOv(A); await closeOv(B);
-  await goTab(A, "polsa");
+  await goTab(A, "hjem");
   await A.waitForSelector('[data-act="feed"]');
   await A.click('[data-act="feed"]');
   await A.waitForSelector('[data-act="treat"]');
-  const streakTxt = await A.textContent(".streak b");
+  const streakTxt = await A.textContent(".streak-n b");
+  if (!(await A.$(".week li.today.fed"))) throw new Error("dagen i dag er ikke fylt i uka");
   if (streakTxt.trim() !== "1") throw new Error("streak " + streakTxt);
   await A.click('[data-act="treat"]');
   await A.waitForTimeout(300);
   await shot(A, "f1-polsa");
   log("Mads gir Pølsa mat (streak 1) og en godbit");
-  await goTab(B, "polsa");
-  await B.waitForFunction(() => /Mads ga Pølsa mat/.test(document.querySelector(".pet-status")?.textContent || ""), null, { timeout: 20000 });
+  await goTab(B, "hjem");
+  await B.waitForFunction(() => /Mads ga mat/.test(document.querySelector(".pet-status")?.textContent || ""), null, { timeout: 20000 });
   log("Kari ser at Mads har gitt Pølsa mat");
 
   // --- Pølsehopp ---
@@ -319,8 +341,12 @@ try {
   await A.waitForFunction(() => [...document.querySelectorAll("#v-handle .shopi.done")].some((e) => /Kjøttdeig/.test(e.textContent)), null, { timeout: 20000 });
   await shot(A, "g3-handleliste-lys");
   log("Kari krysser av kjøttdeigen, og den blir krysset av hos Mads også");
-  await goTab(A, "pling");
-  await A.click('[data-act="pick-pling"][data-k="handle"]');
+  // «Ofte kjøpt»: kjøttdeigen er handlet, så den foreslås igjen
+  await A.waitForSelector('#shop-often [data-name="Kjøttdeig"]');
+  const often = await A.$$eval("#shop-often .chip-b", (els) => els.map((e) => e.textContent.trim()));
+  if (often.some((t) => /Lime|Majones/.test(t))) throw new Error("foreslår varer som står på listen: " + often.join(", "));
+  log("«Ofte kjøpt» foreslår det som ikke står på listen: " + often.join(" "));
+  await sendPling(A, "handle");
   await A.waitForSelector("#fp-attach");
   await A.click('#f-pling [type=submit]');
   await B.waitForSelector('#ov:not([hidden]) [data-act="ov-shop"]', { timeout: 20000 });
@@ -330,38 +356,55 @@ try {
   await B.click('[data-act="ov-shop"]');
   log("«Kan du handle?» med handlelisten vedlagt: " + ovText.trim());
 
-  // --- pictures on the cards ---
+  // --- Pølsa pictures on the cards ---
   await closeOv(A);
   await goTab(A, "inspo");
-  await A.click('#v-inspo .sec-head [data-act="add-link"]');
-  await A.fill("#fl-url", "https://www.matprat.no/oppskrifter/tradisjon/lasagne/");
-  await A.fill("#fl-title", "Lasagne");
-  await A.click('#f-link [type=submit]');
-  await A.waitForSelector('.rcard:has-text("Lasagne") .rthumb img', { timeout: 15000 });
-  const chip = await A.textContent('.rcard:has-text("Lasagne") .aichip');
-  if (chip.trim() !== "AI-bilde") throw new Error("mangler AI-merke");
+  for (const [t, u] of [["Lasagne", "https://www.matprat.no/oppskrifter/tradisjon/lasagne/"], ["Laks med ris og brokkoli", "https://www.matprat.no/laks/"]]) {
+    await A.click('#v-inspo .sec-head [data-act="add-link"]');
+    await A.fill("#fl-url", u);
+    await A.fill("#fl-title", t);
+    await A.click('#f-link [type=submit]');
+    await A.waitForTimeout(400);
+  }
+  const emo = async (t) => A.textContent('.rcard:has-text("' + t + '") .cover .cov-emo');
+  if ((await emo("Lasagne")) !== "🍝" || (await emo("Laks med ris")) !== "🐟") throw new Error("feil emoji");
+  if (aiImages) throw new Error("AI ble brukt til bilder");
   await A.evaluate(() => window.scrollTo(0, 0));
-  await A.waitForTimeout(400);
-  await shot(A, "i1-kort-med-bilder");
-  log("lenke fra vanlig nettside får et AI-bilde av retten av seg selv, merket «AI-bilde»");
-  const first = await A.getAttribute('.rcard:has-text("Lasagne") .rthumb img', "src");
+  await A.waitForTimeout(300);
+  await shot(A, "i1-polsa-bilder");
+  log("kort uten bilde fra videoen får Pølsa med emoji ut fra navnet: Lasagne 🍝, Laks med ris 🐟, ingen AI");
   await A.click('.rcard:has-text("Lasagne") [data-act="edit-link"]');
-  await A.waitForSelector("#cover-box");
-  await A.click('[data-act="cover-ai"]');
-  await A.waitForFunction((f) => { const i = document.querySelector("#cover-box .covprev img"); return i && i.getAttribute("src") !== f; }, first, { timeout: 15000 });
-  await shot(A, "i2-bytt-bilde");
+  await A.waitForSelector("#cover-box .cover");
+  if (await A.$('[data-act="cover-ai"]')) throw new Error("AI-knappen er der fortsatt");
+  await A.setInputFiles("#cover-file", { name: "lasagne.png", mimeType: "image/png", buffer: plate(2) });
+  await A.waitForSelector("#cover-box .covprev img", { timeout: 10000 });
+  await A.click('[data-act="cover-polsa"]');
+  await A.waitForSelector("#cover-box .covprev .cover", { timeout: 10000 });
+  await shot(A, "i2-bilde-valg");
   await A.click("#sheet .x");
   await A.waitForTimeout(300);
-  await B.click('.tabbar .tab[data-k="inspo"]').catch(() => {});
-  await B.waitForSelector('.rcard:has-text("Lasagne") .rthumb img', { timeout: 20000 });
-  log("«Lag nytt AI-bilde» bytter bildet, og Kari ser det nye bildet også");
+  log("eget bilde kan brukes på kortet, og «Bruk Pølsa-bildet» setter det tilbake");
+  await A.fill("#q-inspo", "kjøttdeig");
+  await A.waitForTimeout(200);
+  const hits = await A.$$eval("#inspo-grid .rcard h3", (els) => els.map((e) => e.textContent));
+  if (hits.length !== 1 || !/Smash-tacos/.test(hits[0])) throw new Error("søk: " + hits.join(", "));
+  await A.fill("#q-inspo", "");
+  await goTab(A, "middager");
+  await A.fill("#q-din", "pasta");
+  await A.waitForTimeout(200);
+  if ((await A.$$("#din-list .drow")).length !== 1) throw new Error("søk i middager");
+  await A.fill("#q-din", "taco");
+  await A.waitForSelector("#din-list .none");
+  await A.fill("#q-din", "");
+  log("søk i Inspo finner ingrediensen «kjøttdeig» i Smash-tacos, og søk i Middager virker");
 
   // --- the menu ---
   await closeOv(A);
-  await goTab(A, "polsa");
-  await A.waitForTimeout(300);
+  await goTab(A, "hjem");
+  await A.waitForTimeout(400);
   const lens0 = await A.$eval("#tab-lens", (e) => e.style.transform);
-  if (!/translate3d\(400/.test(lens0)) throw new Error("linsen står ikke på Pølsa: " + lens0);
+  if (!/translate3d\(0(\.0+)?%/.test(lens0)) throw new Error("linsen står ikke på Hjem: " + lens0);
+  if ((await A.$$(".tabbar .tab")).length !== 4) throw new Error("menyen skal ha fire faner");
   await shot(A, "h1-meny");
   await A.mouse.move(195, 400);
   for (let i = 0; i < 8; i++) { await A.mouse.wheel(0, 120); await A.waitForTimeout(60); }
@@ -369,18 +412,26 @@ try {
   await A.waitForTimeout(700);
   await shot(A, "h2-krympet");
   const homeIcon = await A.$eval("#home-btn", (e) => e.dataset.k);
-  if (homeIcon !== "polsa") throw new Error("knappen viser " + homeIcon);
+  if (homeIcon !== "hjem") throw new Error("knappen viser " + homeIcon);
   await A.click("#home-btn");
   await A.waitForSelector(".tabbar:not(.is-collapsed)");
   await A.waitForTimeout(400);
-  await goTab(A, "inspo");
+  await goTab(A, "handle");
   await A.waitForTimeout(600);
   const lens1 = await A.$eval("#tab-lens", (e) => e.style.transform);
-  if (!/translate3d\(0(\.0+)?%/.test(lens1)) throw new Error("linsen flyttet seg ikke: " + lens1);
-  log("menyen: linsen følger fanen, menyen krymper når du scroller ned og kommer tilbake med knappen");
+  if (!/translate3d\(300/.test(lens1)) throw new Error("linsen flyttet seg ikke: " + lens1);
+  await A.reload();
+  await A.waitForSelector("#app:not([hidden])");
+  if (!(await A.$("#v-hjem:not([hidden])"))) throw new Error("starter ikke på startsiden");
+  log("menyen har fire faner, linsen følger fanen, den krymper når du scroller, og appen starter alltid på Hjem");
+  await closeOv(B);
+  await goTab(B, "hjem");
   await B.evaluate(() => window.scrollTo(0, 0));
-  await B.waitForTimeout(300);
-  await shot(B, "h3-meny-mork");
+  await B.waitForTimeout(400);
+  await shot(B, "h3-hjem-mork");
+  await B.evaluate(() => window.scrollTo(0, 900));
+  await B.waitForTimeout(400);
+  await shot(B, "h4-hjem-mork-nede");
 
   await A.click(".duo");
   await A.waitForSelector("#keytext");

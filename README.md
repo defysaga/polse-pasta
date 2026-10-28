@@ -16,7 +16,7 @@ Appen er en **PWA**: en nettside som legges på hjemskjermen og oppfører seg so
 - **Databasen** er en Durable Object med SQLite hos Cloudflare: oppskrifter, middager, plinger, personer og bildene.
 - **Push-varsler:** når noen sender en pling, sender serveren varselet til den andres telefon med en gang (Web Push via Apple).
 - **Påminnelser:** hver halvtime sjekker serveren om hunden har fått mat i dag. Hvis ikke, får begge et varsel på tidspunktene dere har valgt (cron i `wrangler.toml`).
-- **Oppskrifter:** serveren sender teksten som står til videoen (og notatet deres) til Cloudflare sin AI (Workers AI, modellen Llama 3.3 70B), som skriver ingredienser og steg på norsk. Gratiskvoten holder til mange titalls oppskrifter om dagen.
+- **Oppskrifter:** serveren sender teksten som står til videoen (og notatet deres) til Cloudflare sin AI (Workers AI, modellen Llama 3.3 70B), som skriver ingredienser og steg på norsk. Gratiskvoten holder til mange titalls oppskrifter om dagen. AI brukes ikke til bilder.
 - **Forhåndsvisning:** serveren henter bilde og tittel for TikTok-lenker (TikTok sitt oEmbed) og Instagram-lenker (den offentlige embed-siden), og lagrer bildet hos seg.
 - **Husnøkkelen** holder appen privat. Den lages første gang appen åpnes, og begge skriver den inn én gang.
 - **GitHub → Cloudflare:** hver gang koden i `main` endres, legger Cloudflare den ut på nytt av seg selv.
@@ -58,19 +58,20 @@ Varsler på iPhone krever iOS 16.4 eller nyere, og at appen er åpnet fra hjemsk
 
 ## Funksjoner
 
-- **Inspo:** lim inn lenker fra TikTok og Reels (delingsteksten fra appene renses bort), gi dem navn, notat og merkelapper. Filtrer på «Vil lage», «Laget», TikTok eller Reels, og søk når listen blir lang. Når dere har laget en rett, blir deres eget bilde forsiden på kortet.
-- **Middager:** dato, bilder, stjerner, «lage igjen?» og kommentar fra hver av dere. Øverst ser dere antall middager, snittet og favoritten. Sorter på nyeste eller best rangert, eller vis bare dem du ikke har ratet.
-- **Pling:** pølsehund-hilsen, jeg er sulten, middagen er klar, kan du handle (med handleliste), klem, kyss, god natt og egen melding. Plingen kommer som varsel på låseskjermen, og når appen er åpen trasker en pølsehund inn på skjermen. Mottakeren kan svare med en klem med ett trykk.
-- Det sendes også en pling når du lagrer en ny oppskrift (hvis du vil), og når du ber den andre om å rate en middag («Mas om rating»).
-- **Pølsa:** den felles hunden deres (navnet kan endres). Én av dere må gi mat hver dag, ellers ryker streaken. Du ser streaken, beste streak og hvem som ga mat de siste 14 dagene, og kan gi godbiter. Får hunden ikke mat, kommer det varsel kl. 18.00 og 21.30 (kan endres eller skrus av).
-- **Pølsehopp:** hopp over kongler, brannhydranter, katter og vannpytter, og samle pølser. Fuglene flyr der du hopper, så der må du bli på bakken. Banen er lik for dere begge hver dag. Tar du ledelsen, får den andre en pling.
+- **Startsiden (Hjem):** appen åpner alltid her, også når du kommer tilbake etter en stund. Øverst er Pølsa, så plingene, quizen, plinger dag for dag og Pølsehopp.
+- **Pølsa:** den felles hunden deres (navnet kan endres under ⋯). Én av dere må gi mat hver dag, ellers ryker streaken. Uka vises fra mandag til venstre til søndag til høyre, med forbokstaven til den som ga mat, og en gul strek mellom dager på rad. Får hunden ikke mat, kommer det varsel kl. 18.00 og 21.30 (kan endres eller skrus av). Etter maten kan dere gi godbiter.
+- **Pling:** Klem og Kyss er hovedvalgene og sendes med ett trykk. Under hver av dem ligger varianter: Bamseklem, Lang klem, Trøsteklem og Savner deg, og Slengkyss, Kyss på kinnet, Nesekyss og Elsker deg. Resten (hilsen, sulten, middagen er klar, kan du handle, god natt og egen melding) ligger under «Flere plinger». Plingen kommer som varsel på låseskjermen, og når appen er åpen trasker en pølsehund inn på skjermen. «Svar» tar deg til plingene på startsiden.
+- **Plinger dag for dag:** én rad per dag med emojiene til hver av dere. Trykk på en dag for å se klokkeslett og meldinger.
 - **Couple quiz:** «Hvem av oss?» (begge svarer, og dere ser om dere er enige), «Kjenner du meg?» (tilfeldig spørsmål om deg som den andre gjetter) og egne spørsmål, med eller uten svaralternativer. Den som får spørsmålet, får en pling, og poengene samles.
-- **Bilde på hvert kort:** appen henter bildet fra TikTok- eller Instagram-videoen. Går ikke det, eller er lenken fra en vanlig nettside, lager Cloudflare sin AI (FLUX.1 schnell) et matbilde av retten, merket «AI-bilde». Under «Endre» kan dere lage et nytt AI-bilde, hente bildet fra videoen på nytt, eller bruke et eget bilde. Har dere laget retten og lagt inn et bilde i Middager, er det deres eget bilde som vises.
-- **Forhåndsvisning av videoer:** lim inn en lenke, så hentes bilde og tittel av seg selv. Trykk på kortet for å se videoen i appen. TikTok virker best. For Instagram kommer bildet frem når Instagram tillater det.
-- **Oppskrift fra videoen:** trykk på et kort i Inspo og så **Lag oppskrift**. Appen leser teksten som står til videoen og lager ingredienser og steg for to. Står ikke alt i teksten, foreslår den en vanlig oppskrift på retten og sier fra om det. Dere kan også skrive eller rette oppskriften selv.
-- **Handleliste:** huk av det dere trenger i oppskriften og trykk **Legg i handlelisten**. Listen er felles, så det én krysser av i butikken, blir krysset av hos den andre også. Like varer slås sammen. Del eller kopier listen til Notater eller appen til butikken, og send den med «Kan du handle?»-plingen.
-- **Menyen** nederst er en svevende glass-meny, som i Radar. Linsen glir til fanen du velger, og du kan holde inne og dra fingeren over menyen for å bytte fane. Når du scroller nedover, krymper den til en liten knapp. Trykk på den, eller scroll helt opp, for å få menyen tilbake. Hver fane husker hvor langt ned du var, og trykker du på fanen du allerede står i, går du til toppen.
-- **Tall på app-ikonet:** antall plinger du ikke har sett.
+- **Pølsehopp:** en liten rad nederst på startsiden. Hopp over kongler, brannhydranter, katter og vannpytter, og samle pølser. Banen er lik for dere begge hver dag. Tar du ledelsen, får den andre en pling.
+- **Inspo:** lim inn lenker fra TikTok og Reels (delingsteksten fra appene renses bort), gi dem navn, notat og merkelapper. Filtrer på «Vil lage», «Laget», TikTok, Reels eller merkelapp, og søk på navn, ingrediens eller merkelapp.
+- **Merkelapper:** velg blant de faste, eller trykk «+ Annet» og skriv deres egne (flere med komma). Egne merkelapper dukker opp som valg neste gang, både i Inspo og Middager.
+- **Bilde på kortene:** bildet fra TikTok- eller Instagram-videoen hvis det kan hentes. Ellers et Pølsa-bilde: Pølsa med en mat-emoji valgt ut fra ordene i navnet (pasta 🍝, taco 🌮, laks 🐟, kake 🍰 osv.) på en dempet bakgrunn med samme emoji. Under «Endre» kan dere bruke et eget bilde eller gå tilbake til Pølsa-bildet. Har dere laget retten og lagt inn et bilde i Middager, vises deres eget bilde.
+- **Oppskrift fra videoen:** trykk på et kort i Inspo og så **Lag oppskrift**. Appen leser teksten som står til videoen og lager ingredienser og steg for to. Dere kan også skrive eller rette oppskriften selv.
+- **Middager:** skriv hva dere lagde (navnene fra Inspo foreslås mens du skriver), legg til bilde og stjerner. Dato, kommentar, «lage igjen?» og merkelapper ligger under «Flere detaljer». Søk og filtrer på merkelapp. Øverst ser dere antall middager, snittet og favoritten.
+- **Handleliste:** felles liste der det én krysser av, blir krysset av hos den andre også. Legg i varer fra oppskriftene, skriv flere på én gang («melk, 2 pk smør»), eller trykk på «Ofte kjøpt» for det dere pleier å kjøpe. Del eller kopier listen, og send den med «Kan du handle?»-plingen.
+- **Menyen** nederst har fire faner: Hjem, Inspo, Middager og Handle. Linsen glir til fanen du velger, du kan dra fingeren over menyen for å bytte fane, og den krymper til en liten knapp når du scroller nedover.
+- **Tall på app-ikonet:** antall plinger du ikke har sett. Tallet på Hjem-fanen teller også quizrunder der det er din tur, og om Pølsa mangler mat.
 - **Uten nett:** appen åpner og viser alt den har hentet før. Det du legger inn, sendes når du er på nett igjen. Bilder krever nett.
 
 ## Når koden endres

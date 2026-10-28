@@ -265,8 +265,7 @@ const RECIPE_SCHEMA = {
     fromCaption: { type: "boolean" },
     ingredients: { type: "array", items: { type: "object", properties: { name: { type: "string" }, amount: { type: "string" }, pantry: { type: "boolean" } }, required: ["name", "amount"] } },
     steps: { type: "array", items: { type: "string" } },
-    tip: { type: "string" },
-    photo: { type: "string" }
+    tip: { type: "string" }
   },
   required: ["title", "servings", "ingredients", "steps"]
 };
@@ -281,7 +280,7 @@ export function recipePrompt(info) {
     + "\nLag oppskriften på retten for 2 porsjoner. Hvis teksten har ingredienser eller mengder, bruk dem og sett fromCaption til true. "
     + "Hvis teksten ikke sier nok, lag en vanlig, god oppskrift på retten og sett fromCaption til false. Ta hensyn til notatet vårt. "
     + "Sett pantry til true for det de fleste har hjemme fra før (salt, pepper, olje, smør, sukker, hvetemel, vann). "
-    + "Skriv stegene kort, med ett steg per punkt. time er total tid, f.eks. \"30 min\". tip er ett kort tips, eller tom tekst. photo er en kort beskrivelse PÅ ENGELSK av hvordan den ferdige retten ser ut, for en matfotograf (maks 25 ord).";
+    + "Skriv stegene kort, med ett steg per punkt. time er total tid, f.eks. \"30 min\". tip er ett kort tips, eller tom tekst.";
   return [{ role: "system", content: system }, { role: "user", content: user }];
 }
 function firstJson(text) {
@@ -297,7 +296,7 @@ export function cleanRecipe(r) {
     .filter((x) => x.name);
   const steps = (Array.isArray(r.steps) ? r.steps : []).slice(0, 15).map((x) => str(x, 400).replace(/^\d+[.)]\s*/, "")).filter(Boolean);
   const servings = Math.min(12, Math.max(1, parseInt(r.servings, 10) || 2));
-  return { title: str(r.title, 80), servings, time: str(r.time, 30), fromCaption: !!r.fromCaption, ingredients, steps, tip: str(r.tip, 300), photo: str(r.photo, 220), source: "ai", at: Date.now() };
+  return { title: str(r.title, 80), servings, time: str(r.time, 30), fromCaption: !!r.fromCaption, ingredients, steps, tip: str(r.tip, 300), source: "ai", at: Date.now() };
 }
 export async function makeRecipe(ai, info) {
   const messages = recipePrompt(info);
@@ -316,32 +315,6 @@ export async function makeRecipe(ai, info) {
     }
   }
   throw { code: "ai_failed", message: String(last && last.message || last || "") };
-}
-
-/* ---------- the picture on the card ---------- */
-function fromB64(b64) {
-  const bin = atob(String(b64).replace(/^data:[^,]+,/, ""));
-  const u = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-  return u;
-}
-/** Kort engelsk beskrivelse av retten, til bildemodellen (den forstår engelsk best). */
-export async function dishInEnglish(ai, link) {
-  if (link.recipe && link.recipe.photo) return String(link.recipe.photo).slice(0, 220);
-  const fallback = String(link.title || "a homemade dinner").slice(0, 120);
-  try {
-    const ings = link.recipe && Array.isArray(link.recipe.ingredients) ? link.recipe.ingredients.slice(0, 8).map((i) => i.name).join(", ") : "";
-    const out = await ai.run("@cf/meta/llama-3.1-8b-instruct", {
-      messages: [
-        { role: "system", content: "You describe dishes for a food photographer. Given a Norwegian dish name (and maybe a video caption or ingredients), answer with ONE short English description of what the finished dish looks like, max 25 words. Answer with the description only." },
-        { role: "user", content: "Dish: " + fallback + (ings ? "\nIngredients: " + ings : "") + (link.caption ? "\nVideo caption: " + String(link.caption).slice(0, 400) : "") }
-      ],
-      max_tokens: 60, temperature: 0.3
-    });
-    const t = String(out && out.response || "").split("\n").map((x) => x.trim()).filter(Boolean)[0] || "";
-    const clean = t.replace(/^["'“”]+|["'“”]+$/g, "").replace(/^(description|dish)\s*:\s*/i, "").slice(0, 220);
-    return clean.length > 3 ? clean : fallback;
-  } catch (e) { return fallback; }
 }
 
 /* ---------- the Durable Object ---------- */
@@ -393,8 +366,22 @@ export class Hjem {
     return safeEqual(await sha256hex(given.trim()), hash);
   }
 
+  /* Engangsopprydding: AI-bildene er byttet ut med Pølsa-bilder i appen, så de slettes her. */
+  migrate() {
+    if (this.meta("mig:noai")) return;
+    const rows = this.sql.exec("SELECT id, data FROM docs WHERE coll = 'links' AND deleted = 0 AND json_extract(data, '$.thumbKind') = 'ai'").toArray();
+    for (const r of rows) {
+      const d = JSON.parse(r.data);
+      if (d.thumb) this.sql.exec("DELETE FROM photos WHERE id = ?", d.thumb);
+      delete d.thumb; delete d.thumbKind;
+      this.putDoc("links", r.id, d);
+    }
+    this.setMeta("mig:noai", String(Date.now()));
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+    if (!this.migrated) { this.migrated = true; try { this.migrate(); } catch (e) { console.log("Opprydding feilet", String(e)); } }
     const path = url.pathname.replace(/\/+$/, "");
     const m = request.method;
     try {
@@ -616,21 +603,21 @@ export class Hjem {
     return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 3000), author: String(p.author || "").slice(0, 80), photo, canonical: p.canonical || null, embed: p.embed || null });
   }
 
-  /* Bilde til kortet: først bildet fra videoen, ellers et matbilde av retten laget av AI. */
+  /* Bilde til kortet: bildet fra TikTok- eller Instagram-videoen. Finnes det ikke, viser appen et Pølsa-bilde. */
   async cover(request) {
     const b = await request.json().catch(() => ({}));
-    const id = String(b.linkId || ""), mode = ["auto", "video", "ai"].includes(b.mode) ? b.mode : "auto";
+    const id = String(b.linkId || ""), mode = b.mode === "video" ? "video" : "auto";
     if (!ID_RE.test(id)) return fail(400, "bad_ref", "Ugyldig video.");
     const link = this.getDoc("links", id);
     if (!link) return fail(404, "not_found", "Fant ikke videoen.");
-    if (mode === "auto" && link.thumb) return json({ ok: true, kind: link.thumbKind || "video", docs: [] });
+    if (mode === "auto" && link.thumb && link.thumbKind !== "ai") return json({ ok: true, kind: link.thumbKind || "video", docs: [] });
     if (this.coverBusy.has(id)) return json({ ok: true, busy: true, docs: [] });
     this.coverBusy.add(id);
     try {
       const social = link.platform === "tiktok" || link.platform === "instagram";
       let photo = null, kind = null;
       const extra = {};
-      if (mode !== "ai" && social) {
+      if (social) {
         let p = null;
         try { p = link.platform === "tiktok" ? await tiktokPreview(link.url) : await instagramPreview(link.url); } catch (e) {}
         if (p) {
@@ -642,19 +629,9 @@ export class Hjem {
         if (photo) kind = "video";
         else console.log("Fant ikke bilde fra videoen", link.platform, link.url, p ? (p.thumb ? "bildet kunne ikke lastes ned" : "ingen bilde-adresse") : "ingen svar");
       }
-      if (!photo && mode !== "video" && this.env.AI) {
-        try { photo = await this.aiCover(Object.assign({}, link, extra)); kind = "ai"; }
-        catch (e) {
-          console.log("AI-bilde feilet", String(e && e.message || e));
-          if (/3036|daily free allocation|neurons/i.test(String(e && e.message || e))) {
-            this.saveCoverTry(id, extra);
-            return fail(429, "ai_quota", "Dagens gratis AI-bilder er brukt opp. Prøv igjen i morgen.");
-          }
-        }
-      }
       if (!photo) {
         const doc = this.saveCoverTry(id, extra);
-        return fail(502, "no_image", mode === "video" ? "Fant ikke noe bilde fra videoen." : "Klarte ikke å lage et bilde akkurat nå.", doc);
+        return fail(502, "no_image", "Fant ikke noe bilde fra videoen.", doc);
       }
       const fresh = this.getDoc("links", id) || link;
       if (fresh.thumb && fresh.thumb !== photo) this.sql.exec("DELETE FROM photos WHERE id = ?", fresh.thumb);
@@ -666,21 +643,6 @@ export class Hjem {
     const fresh = this.getDoc("links", id);
     return fresh ? this.putDoc("links", id, Object.assign({}, fresh, extra || {}, { coverTried: Date.now(), previewTried: true })) : null;
   }
-  async aiCover(link) {
-    const dish = await dishInEnglish(this.env.AI, link);
-    const prompt = "Appetizing homemade food photography of " + dish + ". Plated and ready to eat, three-quarter view from above, "
-      + "soft natural window light, shallow depth of field, cozy kitchen table, vibrant fresh colors. No text, no people, no hands.";
-    const out = await this.env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt, steps: 6 });
-    const b64 = out && (out.image || (out.result && out.result.image));
-    if (!b64) throw new Error("tomt bilde");
-    const bytes = fromB64(b64);
-    const type = bytes[0] === 0x89 && bytes[1] === 0x50 ? "image/png" : bytes[0] === 0xff && bytes[1] === 0xd8 ? "image/jpeg" : null;
-    if (!type || bytes.length > MAX_PHOTO) throw new Error("ugyldig bilde");
-    const id = randomId(24);
-    this.sql.exec("INSERT INTO photos (id, type, bytes, created) VALUES (?, ?, ?, ?)", id, type, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), Date.now());
-    return id;
-  }
-
   async storeRemoteImage(src) {
     try {
       const u = new URL(src);

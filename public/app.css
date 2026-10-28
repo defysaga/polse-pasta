@@ -156,22 +156,7 @@ main{padding-block:18px calc(env(safe-area-inset-bottom,0px) + 108px)}
 .stars svg.on{fill:var(--mustard)}
 
 /* Pling */
-.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:10px}
-.pcard{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:8px 10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px;color:var(--ink)}
-.pcard b{font-size:15px;line-height:1.2}
-.pcard small{color:var(--ink-2);font-size:12.5px;line-height:1.3}
-.pcard:disabled{opacity:.5}
-.pcard:active:not(:disabled){transform:scale(.97)}
-@media (hover:hover){.pcard:hover:not(:disabled) .dog .wag{animation:wag .42s ease-in-out infinite alternate}}
 .sub-h{font-family:var(--f-display);font-weight:400;font-size:22px;margin:8px 0 0}
-.plog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.pli{display:grid;grid-template-columns:56px minmax(0,1fr);gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:8px 12px 8px 8px}
-.pli.in{background:var(--tile-3);border-color:transparent}
-.pli .dog{width:56px}
-.pli div{min-width:0;display:flex;flex-direction:column;gap:2px}
-.pli b{font-size:14px}
-.pli q{font-size:14px;overflow-wrap:anywhere;quotes:"«" "»"}
-.pli small{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
 
 /* Empty states */
 .empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:22px 16px 24px;background:var(--surface);border:1.5px dashed var(--line);border-radius:22px}
@@ -339,20 +324,6 @@ details.more .form{margin-top:12px}
 .small{font-size:13px;color:var(--ink-2);margin:0}
 
 /* Pølsa: the shared dog */
-.petcard{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:10px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center}
-.pet-dog{width:100%;max-width:300px}
-.pet-status{margin:0;max-width:36ch;font-size:15px}
-.petcard>.btn.big{width:100%;max-width:340px}
-.streak{display:flex;gap:10px;width:100%;max-width:340px}
-.streak>div{flex:1;background:var(--surface-2);border-radius:14px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:3px}
-.streak b{font-family:var(--f-display);font-weight:400;font-size:32px;line-height:1;color:var(--ketchup);font-variant-numeric:tabular-nums}
-.streak span{font-family:var(--f-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}
-.days{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:3px;width:100%;max-width:420px}
-.days li{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
-.days i{width:100%;max-width:22px;aspect-ratio:1;border-radius:50%;background:transparent;border:1.5px dashed var(--line);display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;color:var(--on-mustard)}
-.days li.fed i{background:var(--mustard);border:1.5px solid var(--mustard)}
-.days li.today i{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--ketchup)}
-.days span{font-family:var(--f-mono);font-size:9.5px;color:var(--ink-2)}
 .funcard{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:14px 16px 16px;display:flex;flex-direction:column;gap:12px}
 .fc-head{display:flex;gap:12px;align-items:center}
 .fc-head>div:first-child{flex:1;min-width:0}
@@ -416,7 +387,6 @@ button.rthumb{border:0;padding:0;width:100%;font:inherit;color:inherit;cursor:po
 .g-hit{font-weight:700}
 .g-big{font-family:var(--f-display);font-weight:400;font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
 .g-msg{background:var(--tile-2);border-radius:12px;padding:8px 10px;font-weight:700}
-#nav-polsa-l{max-width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* Recipe */
 .recipe{background:var(--surface-2);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -468,17 +438,17 @@ button.rthumb{border:0;padding:0;width:100%;font:inherit;color:inherit;cursor:po
 }
 .tabbar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 10px);z-index:8;display:flex;justify-content:center;
   padding:0 max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));pointer-events:none;transform:translateZ(0)}
-.tabbar-main{position:relative;flex:1 1 auto;max-width:440px;display:flex;min-width:0}
+.tabbar-main{position:relative;flex:1 1 auto;max-width:370px;display:flex;min-width:0}
 .tabbar-pill,.home-btn{pointer-events:auto;background:var(--glass);-webkit-backdrop-filter:blur(20px) saturate(170%);backdrop-filter:blur(20px) saturate(170%);
   border:1px solid var(--glass-line);box-shadow:inset 0 1px .5px var(--glass-hi),0 10px 30px var(--shadow),0 1px 3px var(--shadow)}
-.tabbar-pill{position:relative;flex:1 1 auto;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-radius:999px;padding:5px;transform-origin:27px 50%}
+.tabbar-pill{position:relative;flex:1 1 auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-radius:999px;padding:5px;transform-origin:27px 50%}
 .tab{position:relative;z-index:1;border:0;background:transparent;border-radius:999px;padding:7px 2px 6px;display:flex;flex-direction:column;align-items:center;gap:2px;
   color:var(--ink-2);min-width:0;font:inherit;-webkit-user-select:none;user-select:none}
 .tab svg{width:24px;height:24px}
 .tab-label{font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .tab[aria-current="page"],.tab.is-hover{color:var(--ketchup)}
 .tab .badge{top:1px;left:calc(50% + 6px)}
-.tab-lens{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / 5);border-radius:999px;background:var(--lens);z-index:0;
+.tab-lens{position:absolute;top:5px;bottom:5px;left:5px;width:calc((100% - 10px) / 4);border-radius:999px;background:var(--lens);z-index:0;
   box-shadow:inset 0 1px .5px var(--glass-hi);transform:translate3d(0,0,0)}
 .tabbar-pill.no-sel .tab-lens{opacity:0}
 .home-btn{position:absolute;left:0;top:calc(50% - 27px);width:54px;height:54px;border-radius:50%;display:grid;place-items:center;color:var(--ketchup);padding:0;
@@ -502,7 +472,6 @@ button.rthumb{border:0;padding:0;width:100%;font:inherit;color:inherit;cursor:po
 html.is-scrolling .dog *{animation-play-state:paused!important}
 
 /* Bilder på kortene */
-.aichip{position:absolute;top:8px;right:8px;background:var(--surface);color:var(--ink-2);font:500 10px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.05em;padding:4px 7px;border-radius:999px;opacity:.92}
 .covwait{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:var(--surface);color:var(--ink);font-size:12px;font-weight:700;padding:5px 10px;border-radius:999px;white-space:nowrap;animation:covpulse 1.4s ease-in-out infinite}
 @keyframes covpulse{50%{opacity:.55}}
 @media (prefers-reduced-motion: reduce){.covwait{animation:none}}
@@ -515,3 +484,111 @@ html.is-scrolling .dog *{animation-play-state:paused!important}
 .covbtns label.btn{position:relative;cursor:pointer}
 .covbtns label.btn:focus-within{outline:3px solid var(--mustard);outline-offset:2px}
 .playimg{width:100%;max-height:52vh;object-fit:cover;border-radius:16px;display:block}
+
+/* ---------- Startsiden ---------- */
+#v-hjem{gap:18px}
+.homesec{display:flex;flex-direction:column;gap:10px}
+.hs-head{display:flex;align-items:baseline;justify-content:space-between;gap:4px 10px;flex-wrap:wrap}
+.hs-head h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1.05}
+
+/* Pølsa: mat og streak. Uka går fra mandag til venstre til søndag til høyre */
+.petcard{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:10px 14px 12px;display:flex;flex-direction:column;gap:10px}
+.pet-top{display:flex;gap:10px;align-items:center}
+.pet-dog{width:42%;max-width:180px;flex:none}
+.pet-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;align-items:flex-start}
+.pet-h{display:flex;align-items:center;justify-content:space-between;width:100%;gap:6px}
+.pet-h h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:28px;line-height:1;color:var(--ketchup);overflow-wrap:anywhere}
+.pet-h .iconbtn{border:0;width:30px;height:30px;flex:none}
+.pet-status{margin:0;font-size:14px;line-height:1.35}
+.pet-main .btn{padding:10px 16px}
+.pet-week{display:flex;gap:12px;align-items:center;background:var(--surface-2);border-radius:16px;padding:10px 12px}
+.streak-n{display:flex;align-items:center;gap:6px;flex:none}
+.streak-n b{font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1;color:var(--ketchup);font-variant-numeric:tabular-nums}
+.streak-n span{font-family:var(--f-mono);font-size:10.5px;line-height:1.15;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2)}
+.week{list-style:none;margin:0;padding:0;flex:1;min-width:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.week li{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0}
+.week i{position:relative;z-index:1;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:800;color:var(--on-mustard);border:1.5px dashed var(--line);background:var(--surface)}
+.week li.fed i{background:var(--mustard);border:1.5px solid var(--mustard)}
+.week li.fed+li.fed::before{content:"";position:absolute;top:10px;right:50%;width:100%;height:6px;background:var(--mustard);z-index:0}
+.week li.future i{border-style:dotted;background:transparent;opacity:.55}
+.week li.today i{box-shadow:0 0 0 2px var(--surface-2),0 0 0 4px var(--ketchup)}
+.week span{font-family:var(--f-mono);font-size:10px;color:var(--ink-2)}
+.week li.today span{color:var(--ketchup);font-weight:500}
+.pet-foot{margin:0}
+
+/* Klem og Kyss er hovedvalgene, med varianter under */
+.kk{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kk-col{display:flex;flex-direction:column;gap:7px;min-width:0}
+.kk-big{position:relative;display:flex;flex-direction:column;align-items:center;gap:0;border:0;border-radius:22px;padding:8px 8px 12px;color:var(--ink);font:inherit;cursor:pointer;overflow:hidden;-webkit-user-select:none;user-select:none}
+.kk-big.klem{background:var(--tile-2)}
+.kk-big.kyss{background:var(--tile-1)}
+.kk-big .dog{width:100%;max-width:150px}
+.kk-big b{font-family:var(--f-display);font-weight:400;font-size:30px;line-height:1}
+.kk-emo{position:absolute;top:8px;right:10px;font-size:26px;line-height:1}
+.kk-vars{display:flex;flex-direction:column;gap:6px}
+.pv{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 10px;font:inherit;font-size:14px;font-weight:700;color:var(--ink);text-align:left;min-width:0;cursor:pointer;-webkit-user-select:none;user-select:none}
+.pv span{font-size:18px;line-height:1;flex:none}
+.plmore{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 12px}
+.plmore summary{cursor:pointer;font-weight:700;color:var(--ink-2)}
+.pvars{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.pvars .pv{background:var(--surface-2);border-color:transparent}
+@media (prefers-reduced-motion: no-preference){
+  .kk-big,.pv{transition:transform 140ms}
+  .kk-big:active,.pv:active{transform:scale(.96)}
+  .kk-big.sent .kk-emo{animation:kkpop .8s cubic-bezier(.2,1.4,.4,1)}
+  .kk-big.sent .dog .wag{animation:wag .28s ease-in-out 6 alternate}
+  .pv.sent{animation:pvpop .6s ease-out}
+}
+@keyframes kkpop{0%{transform:none}35%{transform:scale(1.7) translateY(-8px) rotate(-8deg)}100%{transform:none}}
+@keyframes pvpop{35%{transform:scale(1.04);background:var(--tile-3)}}
+
+/* Plinger dag for dag */
+.pdays{display:flex;flex-direction:column;gap:8px}
+.pday{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 12px}
+.pday summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.pday summary::-webkit-details-marker{display:none}
+.pd-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pd-h b{font-size:15px}
+.pd-h span{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
+.pd-row{display:flex;align-items:center;gap:8px;min-width:0}
+.pd-emo{flex:1;min-width:0;font-size:18px;letter-spacing:1px;overflow-wrap:anywhere;line-height:1.35}
+.pd-emo small{font-size:12px;color:var(--ink-2);margin-left:4px;letter-spacing:0}
+.pd-n{font-family:var(--f-mono);font-size:12px;color:var(--ink-2)}
+.pd-list{list-style:none;margin:10px 0 0;padding:10px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;font-size:14px}
+.pd-list li{display:flex;gap:10px;min-width:0}
+.pd-list li span{min-width:0;overflow-wrap:anywhere}
+.pd-list time{font-family:var(--f-mono);font-size:12px;color:var(--ink-2);flex:none;padding-top:2px}
+.pd-list q{color:var(--ink-2);quotes:"«" "»"}
+
+/* Quizen er mer synlig, Pølsehopp ligger i bakgrunnen */
+.quizcard{background:var(--tile-5);border-color:transparent}
+.quizcard .fc-head h3{font-size:28px}
+.quizcard .qrow,.quizcard .qbtns .btn{background:var(--surface)}
+.q-turn{margin:0;font-weight:800;color:var(--ketchup)}
+.gamerow{display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:16px;padding:6px 10px 6px 6px}
+.gr-dog{width:60px;flex:none}
+.gamerow>div{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.gamerow b{font-size:14px}
+.gamerow small{font-size:12px;color:var(--ink-2);overflow-wrap:anywhere}
+
+/* Pølsa-bilder: Pølsa og mat-emojier på en dempet bakgrunn */
+.cover{position:absolute;inset:0;display:block;overflow:hidden;container-type:inline-size}
+.cov-pat{position:absolute;inset:-20%;display:grid;grid-template-columns:repeat(5,1fr);place-items:center;font-size:12cqw;line-height:1.7;opacity:.2;filter:saturate(.6);transform:rotate(-14deg)}
+.cov-pat i{font-style:normal}
+.cov-dog{position:absolute;left:5%;right:12%;bottom:5%}
+.cov-dog .dog{width:100%}
+.cov-emo{position:absolute;top:12%;right:9%;font-size:28cqw;line-height:1;filter:drop-shadow(0 4px 6px var(--shadow))}
+.rthumb.has-cover .play{display:none}
+.dthumb{position:relative}
+.dthumb.t1{background:var(--tile-1)}.dthumb.t2{background:var(--tile-2)}.dthumb.t3{background:var(--tile-3)}.dthumb.t4{background:var(--tile-4)}.dthumb.t5{background:var(--tile-5)}
+
+/* Merkelapper, søk og handleliste */
+.chip.other span{border-style:dashed;color:var(--ink-2)}
+.chips.wrap{flex-wrap:wrap;overflow:visible}
+.often-l{font-size:13px;font-weight:700;color:var(--ink-2);align-self:center}
+details.more summary i{font-weight:500;font-style:normal;opacity:.8}
+.ov-dog{position:relative}
+.ov-emoji{position:absolute;top:-4px;right:4%;font-size:44px;line-height:1;filter:drop-shadow(0 4px 6px var(--shadow))}
+@media (prefers-reduced-motion: no-preference){.ov-emoji{animation:kkpop 1s cubic-bezier(.2,1.4,.4,1) .5s both}}
+.pday summary::after{content:"Trykk for klokkeslett";font-size:11.5px;color:var(--ink-2)}
+.pday[open] summary::after{content:"Skjul"}

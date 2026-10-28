@@ -36,14 +36,31 @@
 <main class="gut"><div class="col">
   <div id="invite-slot"></div>
 
-  <section class="view" id="v-inspo" aria-labelledby="h-inspo">
+  <section class="view" id="v-hjem" aria-labelledby="h-hjem">
+    <h2 class="vh" id="h-hjem">Hjem</h2>
+    <div id="pet-slot"></div>
+    <div id="push-slot"></div>
+    <div class="homesec" id="pling-sec">
+      <div class="hs-head"><h2>Send en pling</h2><span class="small" id="pl-sub"></span></div>
+      <div id="pl-main"></div>
+      <details class="plmore" id="pl-more"><summary>Flere plinger</summary><div class="pvars" id="pl-grid"></div></details>
+    </div>
+    <div id="quiz-slot"></div>
+    <div class="homesec" id="log-sec">
+      <div class="hs-head"><h2>Plinger dag for dag</h2></div>
+      <div id="pl-log"></div>
+    </div>
+    <div id="game-slot"></div>
+  </section>
+
+  <section class="view" id="v-inspo" aria-labelledby="h-inspo" hidden>
     <div class="sec-head">
       <h2 id="h-inspo">Inspo</h2>
       <button class="btn primary" data-act="add-link">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>Lagre video</button>
     </div>
     <p class="sec-sub">TikToks og Reels dere vil lage. Trykk på et kort for å åpne videoen.</p>
-    <div id="inspo-search-wrap" hidden><label class="vh" for="q-inspo">Søk i oppskrifter</label><input id="q-inspo" class="search" type="search" placeholder="Søk i oppskrifter" autocomplete="off"></div>
+    <div id="inspo-search-wrap" hidden><label class="vh" for="q-inspo">Søk i oppskrifter</label><input id="q-inspo" class="search" type="search" placeholder="Søk på navn, ingrediens eller merkelapp" autocomplete="off"></div>
     <div class="chips" id="inspo-chips"></div>
     <div class="chips" id="inspo-tags" hidden></div>
     <div id="inspo-grid"></div>
@@ -57,7 +74,9 @@
     </div>
     <p class="sec-sub">Alt dere har laget, med bilder og hva dere syntes.</p>
     <div class="stats" id="din-stats" hidden></div>
+    <div id="din-search-wrap" hidden><label class="vh" for="q-din">Søk i middager</label><input id="q-din" class="search" type="search" placeholder="Søk i middager" autocomplete="off"></div>
     <div class="chips" id="din-chips"></div>
+    <div class="chips" id="din-tags" hidden></div>
     <div id="din-list"></div>
   </section>
 
@@ -68,34 +87,15 @@
     <p class="sec-sub">Felles liste for dere begge. Det én krysser av, forsvinner hos den andre også.</p>
     <form class="shopadd" id="f-shopadd" novalidate>
       <label class="vh" for="fs-item">Legg til vare</label>
-      <input class="inp" id="fs-item" name="item" maxlength="200" autocomplete="off" placeholder="Legg til, f.eks. melk, 2 pk smør">
+      <input class="inp" id="fs-item" name="item" maxlength="200" autocomplete="off" list="shop-hist" placeholder="Legg til, f.eks. melk, 2 pk smør">
+      <datalist id="shop-hist"></datalist>
       <button class="btn primary" type="submit">Legg til</button>
     </form>
+    <div class="chips wrap" id="shop-often"></div>
     <div id="shop-list"></div>
     <div id="shop-tools"></div>
   </section>
 
-  <section class="view" id="v-pling" aria-labelledby="h-pling" hidden>
-    <div class="sec-head">
-      <h2 id="h-pling">Pling</h2>
-    </div>
-    <p class="sec-sub" id="pl-sub"></p>
-    <div id="push-slot"></div>
-    <div class="pgrid" id="pl-grid"></div>
-    <h3 class="sub-h">Siste plinger</h3>
-    <div id="pl-log"></div>
-  </section>
-
-  <section class="view" id="v-polsa" aria-labelledby="h-polsa" hidden>
-    <div class="sec-head">
-      <h2 id="h-polsa">Pølsa</h2>
-      <button class="iconbtn" data-act="pet-settings" aria-label="Navn og påminnelser for hunden"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button>
-    </div>
-    <p class="sec-sub">Hunden deres. Gi mat hver dag så streaken holder, og konkurrer i spill og quiz.</p>
-    <div id="pet-slot"></div>
-    <div id="game-slot"></div>
-    <div id="quiz-slot"></div>
-  </section>
 </div></main>
 
 <!-- Bunnmeny i glass, som i Radar: linsen glir mellom fanene, og menyen krymper når du scroller -->
@@ -103,7 +103,11 @@
   <div class="tabbar-main">
     <div class="tabbar-pill" id="tabs">
       <span class="tab-lens" id="tab-lens" aria-hidden="true"></span>
-      <button class="tab" type="button" data-act="tab" data-k="inspo" aria-current="page">
+      <button class="tab" type="button" data-act="tab" data-k="hjem" aria-current="page">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.6 12 4l8 6.6V19a1.5 1.5 0 0 1-1.5 1.5H15v-5.5h-6v5.5H5.5A1.5 1.5 0 0 1 4 19z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
+        <span class="tab-label">Hjem</span><span class="badge" id="home-badge" hidden></span>
+      </button>
+      <button class="tab" type="button" data-act="tab" data-k="inspo">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>
         <span class="tab-label">Inspo</span>
       </button>
@@ -114,14 +118,6 @@
       <button class="tab" type="button" data-act="tab" data-k="handle">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.4l2.2 10.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.6" fill="currentColor"/><circle cx="17" cy="19.5" r="1.6" fill="currentColor"/></svg>
         <span class="tab-label">Handle</span>
-      </button>
-      <button class="tab" type="button" data-act="tab" data-k="pling">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="16.2" rx="5" ry="4.2" fill="currentColor"/><ellipse cx="5.4" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/><ellipse cx="9.3" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="14.7" cy="6.2" rx="2.1" ry="2.7" fill="currentColor"/><ellipse cx="18.6" cy="10.6" rx="2.1" ry="2.6" fill="currentColor"/></svg>
-        <span class="tab-label">Pling</span><span class="badge" id="pl-badge" hidden></span>
-      </button>
-      <button class="tab" type="button" data-act="tab" data-k="polsa">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor" transform="rotate(-35 12 12)"><circle cx="4.6" cy="9.4" r="2.7"/><circle cx="4.6" cy="14.6" r="2.7"/><circle cx="19.4" cy="9.4" r="2.7"/><circle cx="19.4" cy="14.6" r="2.7"/><rect x="4.6" y="9.6" width="14.8" height="4.8" rx="2.2"/></g></svg>
-        <span class="tab-label" id="nav-polsa-l">Pølsa</span><span class="badge" id="polsa-badge" hidden></span>
       </button>
     </div>
     <button class="home-btn" id="home-btn" type="button" aria-label="Vis menyen" aria-hidden="true" tabindex="-1"></button>

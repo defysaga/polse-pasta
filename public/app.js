@@ -58,21 +58,55 @@ const ICON = {
 };
 
 const TAGS = ['Pasta', 'Kylling', 'Kjøtt', 'Fisk', 'Vegetar', 'Rask', 'Fredagsmat', 'Suppe', 'Frokost', 'Dessert'];
+// Merkelappene dere har skrevet selv under «Annet» dukker opp som valg neste gang
+function allTags(extra) {
+  const cnt = {};
+  [...S.links, ...S.dinners].forEach(x => (x.tags || []).forEach(t => { if (!TAGS.includes(t)) cnt[t] = (cnt[t] || 0) + 1; }));
+  const list = TAGS.concat(Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || a.localeCompare(b, 'nb')));
+  (extra || []).forEach(t => { if (!list.includes(t)) list.push(t); });
+  return list;
+}
+function tagPicker(sel, idp) {
+  sel = sel || [];
+  return '<fieldset class="fld"><legend>Merkelapper</legend><div class="chipset">'
+    + allTags(sel).map(t => '<label class="chip"><input type="checkbox" name="tags" value="' + esc(t) + '"' + (sel.includes(t) ? ' checked' : '') + '><span>' + esc(t) + '</span></label>').join('')
+    + '<label class="chip other"><input type="checkbox" name="tagOtherOn" id="' + idp + '-other-on"><span>+ Annet</span></label></div>'
+    + '<input class="inp" id="' + idp + '-other" name="tagOther" maxlength="60" autocomplete="off" placeholder="Skriv merkelapp, f.eks. Thai eller Grill" hidden></fieldset>';
+}
+function readTags(f) {
+  const t = [...f.querySelectorAll('input[name=tags]:checked')].map(i => i.value);
+  const o = f.tagOther && !f.tagOther.hidden ? f.tagOther.value : '';
+  o.split(/[,;]+/).map(x => x.trim().slice(0, 24)).filter(Boolean).forEach(x => {
+    x = x.charAt(0).toUpperCase() + x.slice(1);
+    if (!t.some(y => y.toLowerCase() === x.toLowerCase())) t.push(x);
+  });
+  return t.slice(0, 12);
+}
 const PLINGS = {
-  hei:       { title: 'Pølsehund-hilsen', msg: 'En liten pølsehund kom innom for å si hei.', dog: 'hei', emoji: '🐶' },
-  sulten:    { title: 'Jeg er sulten', msg: 'Magen rumler. Hva blir det til middag?', dog: 'sulten', emoji: '🍝' },
-  klar:      { title: 'Middagen er klar', msg: 'Kom og spis! Maten står på bordet.', dog: 'klar', emoji: '🍽️' },
-  handle:    { title: 'Kan du handle?', msg: 'Kan du ta med noe på vei hjem?', dog: 'handle', emoji: '🛒', input: 'F.eks. parmesan, melk og basilikum', label: 'Hva trengs?' },
-  klem:      { title: 'Klem', msg: 'Her kommer en stor klem.', dog: 'klem', emoji: '🤗' },
-  kyss:      { title: 'Kyss', msg: 'Smask! Et kyss fra meg.', dog: 'kyss', emoji: '💋' },
-  natt:      { title: 'God natt', msg: 'Pølsa legger seg nå. Sov godt!', dog: 'natt', emoji: '🌙' },
-  egen:      { title: 'Melding', msg: '', dog: 'egen', emoji: '💬', input: 'Skriv noe søtt…', label: 'Melding', custom: true },
-  oppskrift: { title: 'Ny oppskrift!', msg: 'Fant noe vi må lage:', dog: 'oppskrift', emoji: '📌', hidden: true },
-  rating:    { title: 'Gi en rating', msg: 'Hva syntes du om middagen?', dog: 'stjerne', emoji: '⭐', hidden: true },
-  quiz:      { title: 'Quiz', msg: '', dog: 'quiz', emoji: '❓', hidden: true },
-  spill:     { title: 'Pølsehopp', msg: '', dog: 'stjerne', emoji: '🏆', hidden: true }
+  klem:       { title: 'Klem', msg: 'Her kommer en stor klem.', dog: 'klem', emoji: '🤗' },
+  kyss:       { title: 'Kyss', msg: 'Smask! Et kyss fra meg.', dog: 'kyss', emoji: '💋' },
+  bamseklem:  { title: 'Bamseklem', msg: 'En myk og varm bamseklem.', dog: 'klem', emoji: '🧸' },
+  langklem:   { title: 'Lang klem', msg: 'En lang klem som ikke slipper taket.', dog: 'klem', emoji: '🫂' },
+  trosteklem: { title: 'Trøsteklem', msg: 'Jeg er her for deg.', dog: 'klem', emoji: '💛' },
+  savner:     { title: 'Savner deg', msg: 'Savner deg! Kommer du snart hjem?', dog: 'klem', emoji: '🥺' },
+  slengkyss:  { title: 'Slengkyss', msg: 'Mwah! Et kyss sendt gjennom lufta.', dog: 'kyss', emoji: '😘' },
+  kinnkyss:   { title: 'Kyss på kinnet', msg: 'Et lite kyss på kinnet.', dog: 'kyss', emoji: '😚' },
+  nesekyss:   { title: 'Nesekyss', msg: 'Nese mot nese, akkurat som Pølsa.', dog: 'kyss', emoji: '🐶' },
+  elsker:     { title: 'Elsker deg', msg: 'Elsker deg masse!', dog: 'kyss', emoji: '❤️' },
+  hei:        { title: 'Pølsehund-hilsen', msg: 'En liten pølsehund kom innom for å si hei.', dog: 'hei', emoji: '👋' },
+  sulten:     { title: 'Jeg er sulten', msg: 'Magen rumler. Hva blir det til middag?', dog: 'sulten', emoji: '🍝' },
+  klar:       { title: 'Middagen er klar', msg: 'Kom og spis! Maten står på bordet.', dog: 'klar', emoji: '🍽️' },
+  handle:     { title: 'Kan du handle?', msg: 'Kan du ta med noe på vei hjem?', dog: 'handle', emoji: '🛒', input: 'F.eks. parmesan, melk og basilikum', label: 'Hva trengs?' },
+  natt:       { title: 'God natt', msg: 'Pølsa legger seg nå. Sov godt!', dog: 'natt', emoji: '🌙' },
+  egen:       { title: 'Melding', msg: '', dog: 'egen', emoji: '💬', input: 'Skriv noe søtt…', label: 'Melding', custom: true },
+  oppskrift:  { title: 'Ny oppskrift!', msg: 'Fant noe vi må lage:', dog: 'oppskrift', emoji: '📌', hidden: true },
+  rating:     { title: 'Gi en rating', msg: 'Hva syntes du om middagen?', dog: 'stjerne', emoji: '⭐', hidden: true },
+  quiz:       { title: 'Quiz', msg: '', dog: 'quiz', emoji: '❓', hidden: true },
+  spill:      { title: 'Pølsehopp', msg: '', dog: 'stjerne', emoji: '🏆', hidden: true }
 };
-const PLING_ORDER = ['hei', 'sulten', 'klar', 'handle', 'klem', 'kyss', 'natt', 'egen'];
+const KLEM_VARS = ['bamseklem', 'langklem', 'trosteklem', 'savner'];
+const KYSS_VARS = ['slengkyss', 'kinnkyss', 'nesekyss', 'elsker'];
+const PLING_MORE = ['hei', 'sulten', 'klar', 'handle', 'natt', 'egen'];
 const KEY_WORDS = ['polse', 'pasta', 'taco', 'sennep', 'ketchup', 'gnocchi', 'pesto', 'lasagne', 'burrito', 'ramen', 'vaffel', 'kanel', 'tomat', 'basilikum', 'parmesan', 'chili', 'risotto', 'falafel', 'pizza', 'nachos', 'kebab', 'sushi', 'lompe', 'brunost'];
 
 /* ---------- the dachshund ---------- */
@@ -160,7 +194,7 @@ const S = {
   docs: Object.assign(EMPTY(), LS.get('pp-docs', {})), since: LS.get('pp-since', 0), queue: LS.get('pp-queue', []),
   members: {}, links: [], dinners: [], plings: [], quiz: [],
   stage: 'boot', online: true, synced: false, push: 'unknown',
-  tab: /polsa/.test(location.hash) ? 'polsa' : /pling/.test(location.hash) ? 'pling' : /handle/.test(location.hash) ? 'handle' : 'inspo', lf: 'alle', tagf: null, q: '', ds: 'nyeste',
+  tab: 'hjem', lf: 'alle', tagf: null, q: '', ds: 'nyeste', dq: '', dtag: null, logDays: 5,
   sheet: null, ovId: null, dismissed: new Set(), booted: Date.now(), startErr: '', who: null
 };
 const canW = () => !!(S.key && S.me);
@@ -436,8 +470,7 @@ function render() {
   $('#app').hidden = !inApp;
   $('#start').hidden = inApp;
   if (!inApp) { renderStart(); return; }
-  ['inspo', 'middager', 'handle', 'pling', 'polsa'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
-  $('#nav-polsa-l').textContent = pet().name;
+  ['hjem', 'inspo', 'middager', 'handle'].forEach(t => { $('#v-' + t).hidden = S.tab !== t; });
   document.querySelectorAll('.tabbar .tab').forEach(b => {
     if (b.dataset.k === S.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
@@ -449,9 +482,8 @@ function render() {
     ? '<div class="invite">' + dog('hei') + '<p>Madammen er ikke med ennå. Send henne appen og husnøkkelen.</p><button class="btn sm" data-act="invite">Del appen</button></div>' : '';
   if (S.tab === 'inspo') renderInspo();
   else if (S.tab === 'middager') renderDinners();
-  else if (S.tab === 'polsa') renderPolsa();
   else if (S.tab === 'handle') renderShop();
-  else renderPling();
+  else renderHome();
 }
 
 function renderHeader() {
@@ -465,10 +497,8 @@ function unseen() {
   return S.plings.filter(p => p.from && p.from !== S.me && !(p.seenBy || {})[S.me] && !S.dismissed.has(p.id));
 }
 function renderBadge() {
-  const n = unseen().length, b = $('#pl-badge');
-  b.hidden = !n; b.textContent = n > 9 ? '9+' : String(n);
-  const pn = polsaBadge(), pb = $('#polsa-badge');
-  pb.hidden = !pn; pb.textContent = pn > 9 ? '9+' : String(pn);
+  const n = unseen().length, pn = polsaBadge(), b = $('#home-badge'), hb = n + pn;
+  b.hidden = !hb; b.textContent = hb > 9 ? '9+' : String(hb);
   const cur = $('.tabbar .tab[data-k="' + S.tab + '"] svg'), home = $('#home-btn');
   if (cur && home.dataset.k !== S.tab) { home.innerHTML = cur.outerHTML; home.dataset.k = S.tab; }
   home.classList.toggle('has-badge', !!(n || pn));
@@ -483,7 +513,7 @@ const loading = txt => '<p class="loading">' + txt + '</p>';
 function renderInspo() {
   const chips = $('#inspo-chips'), tags = $('#inspo-tags'), grid = $('#inspo-grid');
   const made = madeMap(), all = S.links;
-  $('#inspo-search-wrap').hidden = all.length < 6;
+  $('#inspo-search-wrap').hidden = !all.length;
   if (!all.length) {
     chips.innerHTML = ''; tags.hidden = true;
     grid.innerHTML = !S.synced ? loading('Henter oppskriftene…') : emptyBox('oppskrift', 'Ingen videoer lagret ennå',
@@ -506,7 +536,7 @@ function renderInspo() {
   let list = all.filter(l => S.lf === 'alle' || (S.lf === 'vil' && !made[l.id]) || (S.lf === 'laget' && made[l.id]) || l.platform === S.lf);
   if (S.tagf) list = list.filter(l => (l.tags || []).includes(S.tagf));
   const q = S.q.trim().toLowerCase();
-  if (q) list = list.filter(l => ((l.title || '') + ' ' + (l.note || '') + ' ' + (l.tags || []).join(' ')).toLowerCase().includes(q));
+  if (q) list = list.filter(l => [l.title, l.note, (l.tags || []).join(' '), l.author, l.caption, l.recipe && (l.recipe.ingredients || []).map(i => i.name).join(' ')].filter(Boolean).join(' ').toLowerCase().includes(q));
   if (!list.length) { grid.innerHTML = '<p class="none">Ingen treff. <button class="linkbtn" data-act="clear-f">Vis alle</button></p>'; return; }
   grid.innerHTML = '<div class="rgrid">' + list.map(l => linkCard(l, made[l.id])).join('') + '</div>';
   ensureCovers();
@@ -516,14 +546,12 @@ function linkCard(l, m) {
   const tile = 't' + (hash(l.id) % 5 + 1);
   const title = l.title || 'Uten navn';
   const tagTxt = (l.tags || []).slice(0, 2).join(', ');
-  const img = (m && m.photo) || l.thumb;
+  const img = (m && m.photo) || (l.thumbKind === 'ai' ? null : l.thumb);
   const canPlay = !!(l.embed || embedFor(l.url));
   return '<article class="rcard">'
-    + '<button class="rthumb ' + tile + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc((canPlay ? 'Se videoen og oppskriften: ' : 'Se oppskriften: ') + title) + '">'
-    + (img ? '<img src="' + photoUrl(img) + '" alt="" loading="lazy">' : '<span class="ini" aria-hidden="true">' + esc(title.trim().charAt(0).toUpperCase()) + '</span>')
-    + (!img && S.coverBusy === l.id ? '<span class="covwait">Lager bilde…</span>' : '')
-    + '<span class="plat ' + esc(l.platform) + '">' + platLabel(l.platform) + '</span>'
-    + (img && img === l.thumb && l.thumbKind === 'ai' ? '<span class="aichip">AI-bilde</span>' : '')
+    + '<button class="rthumb ' + tile + (img ? '' : ' has-cover') + '" data-act="play" data-id="' + l.id + '" aria-label="' + esc((canPlay ? 'Se videoen og oppskriften: ' : 'Se oppskriften: ') + title) + '">'
+    + (img ? '<img src="' + photoUrl(img) + '" alt="" loading="lazy">' : coverArt(l))
+    + '<span class="plat ' + esc(l.platform) + '">' + (!img && canPlay ? '▶ ' : '') + platLabel(l.platform) + '</span>'
     + (m ? '<span class="stamp">Laget' + (m.count > 1 ? ' ' + m.count + '×' : '') + (m.avg != null ? ' · ' + fmt1(m.avg) + '★' : '') + '</span>' : '')
     + '<span class="play">' + ICON.play + '</span>' + (l.recipe ? '<span class="rchip">Oppskrift</span>' : '') + '</button>'
     + '<div class="rbody"><h3>' + esc(title) + '</h3>'
@@ -537,8 +565,9 @@ function linkCard(l, m) {
 function renderDinners() {
   const stats = $('#din-stats'), chips = $('#din-chips'), list = $('#din-list');
   const all = S.dinners.slice().sort(cmpMade);
+  $('#din-search-wrap').hidden = !all.length;
   if (!all.length) {
-    stats.hidden = true; chips.innerHTML = '';
+    stats.hidden = true; chips.innerHTML = ''; $('#din-tags').hidden = true;
     list.innerHTML = !S.synced ? loading('Henter middagene…') : emptyBox('sulten', 'Ingen middager logget ennå',
       'Når dere har laget noe, legg det inn her med et bilde. Så gir dere begge en rating etterpå.',
       '<button class="btn primary" data-act="add-dinner">Logg første middag</button>');
@@ -555,11 +584,21 @@ function renderDinners() {
   const F = [['nyeste', 'Nyeste'], ['best', 'Best rangert'], ['mangler', 'Mangler din rating']];
   chips.innerHTML = F.filter(([k]) => k !== 'mangler' || missing.length || S.ds === 'mangler')
     .map(([k, l]) => '<button class="chip-b" data-act="ds" data-k="' + k + '" aria-pressed="' + (S.ds === k) + '">' + l + (k === 'mangler' ? '<span class="n">' + missing.length + '</span>' : '') + '</button>').join('');
+  const tc = {};
+  all.forEach(d => (d.tags || []).forEach(t => { tc[t] = (tc[t] || 0) + 1; }));
+  const tl = Object.keys(tc).sort((a, b) => tc[b] - tc[a]);
+  const dt = $('#din-tags');
+  dt.hidden = !tl.length;
+  dt.innerHTML = tl.map(t => '<button class="chip-b sm" data-act="dtagf" data-k="' + esc(t) + '" aria-pressed="' + (S.dtag === t) + '">' + esc(t) + '</button>').join('');
   let L = all;
   const av_ = d => { const a = rinfo(d).avg; return a == null ? -1 : a; };
   if (S.ds === 'best') L = all.slice().sort((a, b) => (av_(b) - av_(a)) || cmpMade(a, b));
   else if (S.ds === 'mangler') L = missing;
-  list.innerHTML = L.length ? '<ul class="dlist">' + L.map(dinnerRow).join('') + '</ul>' : '<p class="none">Du har ratet alt. Godt jobba!</p>';
+  if (S.dtag) L = L.filter(d => (d.tags || []).includes(S.dtag));
+  const q = S.dq.trim().toLowerCase();
+  if (q) L = L.filter(d => [d.title, (d.tags || []).join(' '), Object.values(d.ratings || {}).map(x => x && x.comment).join(' ')].filter(Boolean).join(' ').toLowerCase().includes(q));
+  list.innerHTML = L.length ? '<ul class="dlist">' + L.map(dinnerRow).join('') + '</ul>'
+    : (q || S.dtag) ? '<p class="none">Ingen treff. <button class="linkbtn" data-act="dclear">Vis alle</button></p>' : '<p class="none">Du har ratet alt. Godt jobba!</p>';
 }
 
 function dinnerRow(d) {
@@ -569,7 +608,7 @@ function dinnerRow(d) {
     return '<span>' + av(uid, 18) + (x && x.stars ? stars(x.stars) : '<em>ikke ratet</em>') + '</span>';
   }).join('');
   return '<li><button class="drow" data-act="open-dinner" data-id="' + d.id + '">'
-    + '<span class="dthumb">' + (ph ? '<img src="' + photoUrl(ph) + '" alt="" loading="lazy">' : dog('sulten')) + '</span>'
+    + '<span class="dthumb t' + (hash(d.id) % 5 + 1) + '">' + (ph ? '<img src="' + photoUrl(ph) + '" alt="" loading="lazy">' : coverArt(Object.assign({}, linkById(d.linkId) || {}, { id: d.id, title: d.title, tags: d.tags }))) + '</span>'
     + '<span class="dmain"><span class="dt">' + esc(d.title) + '</span>'
     + '<span class="dmeta">' + esc(fmtDay(d.madeOn)) + (d.url ? ' · ' + platLabel(d.platform) : '') + '</span>'
     + '<span class="drates">' + rates + '</span></span>'
@@ -577,30 +616,127 @@ function dinnerRow(d) {
     + '</button></li>';
 }
 
-function renderPling() {
-  const grid = $('#pl-grid'), log = $('#pl-log');
-  if (!grid.dataset.built) {
-    grid.innerHTML = PLING_ORDER.map(k => {
-      const p = PLINGS[k];
-      return '<button class="pcard" data-act="pick-pling" data-k="' + k + '">' + dog(p.dog) + '<b>' + (k === 'egen' ? 'Egen melding' : p.title) + '</b><small>' + (p.msg || 'Skriv det du vil') + '</small></button>';
-    }).join('');
-    grid.dataset.built = '1';
-  }
+function renderHome() {
+  renderPet();
   $('#push-slot').innerHTML = pushCard();
-  $('#pl-sub').textContent = partnerId()
-    ? 'Trykk på en pølsehund for å sende en pling til ' + partnerName() + '.'
-    : 'Plingene venter på kjæresten til hun er med i appen. Du kan sende allerede nå.';
-  const L = S.plings.slice(0, 30);
-  if (!L.length) { log.innerHTML = !S.synced ? loading('Henter plinger…') : '<p class="none">Ingen plinger ennå. Send den første!</p>'; return; }
-  log.innerHTML = '<ul class="plog">' + L.map(p => {
-    const def = PLINGS[p.kind] || PLINGS.hei;
-    const mine = p.from === S.me;
-    const seenOther = Object.keys(p.seenBy || {}).some(k => k !== p.from);
-    return '<li class="pli ' + (mine ? 'out' : 'in') + '">' + dog(def.dog)
-      + '<div><b>' + (mine ? 'Du → ' + esc(partnerName()) : esc(nm(p.from)) + ' → deg') + ': ' + esc(def.title) + '</b>'
-      + (p.text ? '<q>' + esc(p.text) + '</q>' : '')
-      + '<small>' + ago(p.createdAt) + (mine ? (seenOther ? ' · sett' : ' · ikke sett ennå') : '') + '</small></div></li>';
-  }).join('') + '</ul>';
+  $('#pl-sub').textContent = partnerId() ? 'Ett trykk, så får ' + partnerName() + ' den med en gang.' : 'Den venter til kjæresten er med i appen.';
+  renderPlingButtons();
+  renderQuizCard();
+  renderPlingLog();
+  renderGameCard();
+}
+function plingBtn(k) {
+  const p = PLINGS[k];
+  return '<button class="pv" data-act="send-pling" data-k="' + k + '"><span aria-hidden="true">' + p.emoji + '</span>' + esc(p.title) + '</button>';
+}
+function renderPlingButtons() {
+  const main = $('#pl-main');
+  if (!main.dataset.built) {
+    const col = (k, vars) => '<div class="kk-col"><button class="kk-big ' + k + '" data-act="send-pling" data-k="' + k + '">' + dog(PLINGS[k].dog)
+      + '<b>' + PLINGS[k].title + '</b><span class="kk-emo" aria-hidden="true">' + PLINGS[k].emoji + '</span></button>'
+      + '<div class="kk-vars">' + vars.map(plingBtn).join('') + '</div></div>';
+    main.innerHTML = '<div class="kk">' + col('klem', KLEM_VARS) + col('kyss', KYSS_VARS) + '</div>';
+    $('#pl-grid').innerHTML = PLING_MORE.map(k => plingBtn(k)).join('');
+    main.dataset.built = '1';
+  }
+}
+function dayKey(ts) {
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dayLabel(k) {
+  if (k === today()) return 'I dag';
+  if (k === addDay(today(), -1)) return 'I går';
+  const t = fmtDay(k);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+// Plinger dag for dag: én rad per person med emojiene for det de sendte, trykk for å se klokkeslett
+function renderPlingLog() {
+  const log = $('#pl-log');
+  if (!S.plings.length) { log.innerHTML = !S.synced ? loading('Henter plinger…') : '<p class="none">Ingen plinger ennå. Send den første!</p>'; return; }
+  const days = new Map();
+  S.plings.forEach(p => { const k = dayKey(p.createdAt); if (!days.has(k)) days.set(k, []); days.get(k).push(p); });
+  const keys = [...days.keys()].sort().reverse();
+  const people = [S.me].concat(memberIds().filter(id => id !== S.me));
+  const html = keys.slice(0, S.logDays).map(k => {
+    const list = days.get(k).slice().sort((a, b) => a.createdAt - b.createdAt);
+    const rows = people.map(uid => {
+      const mine = list.filter(p => p.from === uid);
+      if (!mine.length) return '';
+      const em = mine.map(p => (PLINGS[p.kind] || PLINGS.hei).emoji);
+      return '<span class="pd-row">' + av(uid, 22) + '<span class="pd-emo">' + em.slice(0, 18).join('') + (em.length > 18 ? '<small>+' + (em.length - 18) + '</small>' : '') + '</span><small class="pd-n">' + mine.length + '</small></span>';
+    }).join('');
+    const items = list.slice().reverse().map(p => {
+      const def = PLINGS[p.kind] || PLINGS.hei, mine = p.from === S.me;
+      return '<li><time>' + hm(p.createdAt) + '</time><span>' + (mine ? 'Du' : esc(nm(p.from))) + ': ' + def.emoji + ' ' + esc(p.kind === 'egen' ? 'Melding' : def.title)
+        + (p.text ? ' <q>' + esc(p.text) + '</q>' : '') + '</span></li>';
+    }).join('');
+    return '<details class="pday"><summary><span class="pd-h"><b>' + esc(dayLabel(k)) + '</b><span>' + list.length + (list.length === 1 ? ' pling' : ' plinger') + '</span></span>' + rows + '</summary><ul class="pd-list">' + items + '</ul></details>';
+  }).join('');
+  log.innerHTML = '<div class="pdays">' + html + '</div>' + (keys.length > S.logDays ? '<button class="linkbtn qall" data-act="log-more">Vis flere dager</button>' : '');
+}
+
+/* ---------- Pølsa-bilder: Pølsa og mat-emojier ut fra ordene i navnet ---------- */
+const W = '(^|[^a-zæøå])';
+const FOOD = [
+  ['pasta|spaghetti|penne|lasagn|carbonara|gnocchi|tagliatell|ravioli|makaroni|fusilli|linguine|bolognese|pesto', '🍝'],
+  ['pizza|calzone', '🍕'],
+  ['taco|tortilla|burrito|quesadill|nacho|fajita|enchilad', '🌮'],
+  ['burger', '🍔'],
+  ['sushi|poke|maki', '🍣'],
+  ['ramen|nudl|nudel|udon|pad thai|noodle|' + W + 'wok|' + W + 'pho', '🍜'],
+  ['curry|tikka|masala|korma|' + W + 'dal($|[^a-zæøå])', '🍛'],
+  ['suppe|soup|gryte|lapskaus|stew|chili con', '🍲'],
+  ['paella', '🥘'],
+  ['risotto|rice|bibimbap|' + W + 'ris($|[^a-zæøå])', '🍚'],
+  ['dumpling|gyoza|dim sum|wonton', '🥟'],
+  ['kebab|falafel|pita|gyros|shawarma|' + W + 'wrap', '🥙'],
+  ['pølse|hotdog|' + W + 'wiener', '🌭'],
+  ['kylling|chicken|kalkun|wings|vinger', '🍗'],
+  ['biff|steak|entrecote|indrefilet|kjøtt|svin|ribbe|kotelett|meatball|karbonade|' + W + 'lam', '🥩'],
+  ['reke|scampi|shrimp|kreps|hummer|krabbe|blåskjell', '🍤'],
+  ['laks|fisk|torsk|ørret|tunfisk|salmon|fish|kveite|makrell|' + W + 'sei($|[^a-zæøå])', '🐟'],
+  ['salat|salad|bowl', '🥗'],
+  ['omelett|frittata|eggerøre|shakshuka|frokost|brunch|' + W + 'egg', '🍳'],
+  ['vaffel|vafler|waffle', '🧇'],
+  ['pannekake|pancake|crepe|' + W + 'lapper', '🥞'],
+  ['kake|cake|brownie|terte|tiramisu|dessert|' + W + 'pai($|[^a-zæøå])', '🍰'],
+  ['muffin|cupcake|bolle', '🧁'],
+  ['cookie|kjeks', '🍪'],
+  ['iskrem|gelato|sorbet|' + W + 'is($|[^a-zæøå])', '🍨'],
+  ['sjokolade|chocolate|kakao', '🍫'],
+  ['brød|bread|focaccia|rundstykk|bagel|toast|sandwich|smørbrød', '🍞'],
+  ['pommes|fries|potet|potato|rösti', '🍟'],
+  ['cheese|halloumi|fondue|mac ?n|' + W + 'ost', '🧀'],
+  ['avokado|avocado|guacamole', '🥑'],
+  ['smoothie|juice|milkshake', '🥤'],
+  ['cocktail|drink|mojito|spritz', '🍹'],
+  ['kaffe|coffee|latte', '☕'],
+  ['grønnsak|vegetar|vegan|brokkoli|blomkål|tofu', '🥦'],
+  ['sopp|mushroom', '🍄'],
+  ['tomat', '🍅'],
+  ['sitron|lemon|' + W + 'lime', '🍋'],
+  ['chili|sterk|spicy|jalape', '🌶️'],
+  ['hvitløk|garlic', '🧄']
+].map(([re, e]) => [new RegExp(re), e]);
+const SWEET = ['🍰', '🧁', '🍪', '🍨', '🍫', '🧇', '🥞'];
+const CHEF = ['🍝', '🍕', '🍲', '🥘', '🍚', '🍜', '🍛', '🥩', '🐟', '🍤'];
+function foodEmojis(x) {
+  const out = [];
+  const add = e => { if (!out.includes(e)) out.push(e); };
+  // Først ordene i navnet, i den rekkefølgen de står
+  const title = String(x.title || '').toLowerCase();
+  FOOD.map(([re, e]) => { const m = re.exec(title); return m ? [m.index, e] : null; }).filter(Boolean).sort((a, b) => a[0] - b[0]).forEach(([, e]) => add(e));
+  const rest = [(x.tags || []).join(' '), x.note, x.recipe && (x.recipe.ingredients || []).map(i => i.name).join(' ')].filter(Boolean).join(' ').toLowerCase();
+  if (rest) FOOD.forEach(([re, e]) => { if (re.test(rest)) add(e); });
+  return out.length ? out.slice(0, 3) : ['🍽️'];
+}
+function coverArt(x) {
+  const em = foodEmojis(x), main = em[0];
+  const pose = SWEET.includes(main) ? 'kyss' : CHEF.includes(main) ? 'klar' : main === '🍳' || main === '☕' ? 'hei' : ['sulten', 'klar', 'hei'][hash(x.id || x.title || '') % 3];
+  let pat = '';
+  for (let i = 0; i < 20; i++) pat += '<i>' + em[i % em.length] + '</i>';
+  return '<span class="cover" aria-hidden="true"><span class="cov-pat">' + pat + '</span><span class="cov-dog">' + dog(pose) + '</span><span class="cov-emo">' + main + '</span></span>';
 }
 
 /* ---------- start screens ---------- */
@@ -794,9 +930,7 @@ function linkSheet(l) {
     + '<div id="fl-prev"></div>'
     + '<label class="fld"><span>Hva er det?</span><input class="inp" id="fl-title" name="title" maxlength="80" placeholder="F.eks. Kremet gochujang-pasta" value="' + esc(edit ? l.title : '') + '"></label>'
     + '<label class="fld"><span>Notat <i>(valgfritt)</i></span><textarea class="inp" id="fl-note" name="note" rows="2" maxlength="300" placeholder="F.eks. bytt fløte med kokosmelk">' + esc(edit ? (l.note || '') : '') + '</textarea></label>'
-    + '<fieldset class="fld"><legend>Merkelapper</legend><div class="chipset">'
-    + TAGS.map(t => '<label class="chip"><input type="checkbox" name="tags" value="' + t + '"' + (edit && (l.tags || []).includes(t) ? ' checked' : '') + '><span>' + t + '</span></label>').join('')
-    + '</div></fieldset>'
+    + tagPicker(edit ? l.tags : [], 'fl')
     + (edit ? coverEditBox(l) : '')
     + (!edit && partnerId() ? '<label class="toggle"><input type="checkbox" id="fl-pling" name="pling" checked><span>Send pling til ' + esc(partnerName()) + ' om denne</span></label>' : '')
     + '<p class="err" hidden></p>'
@@ -829,7 +963,7 @@ async function saveLink(f) {
   const platform = detect(url);
   const title = f.title.value.trim() || ('Oppskrift fra ' + platLabel(platform));
   const note = f.note.value.trim();
-  const tags = [...f.querySelectorAll('input[name=tags]:checked')].map(i => i.value);
+  const tags = readTags(f);
   const extra = { embed: (pv && pv.embed) || embedFor(url) || null };
   if (pv) { extra.previewTried = true; if (pv.photo) extra.thumb = pv.photo; if (pv.author) extra.author = pv.author; }
   busy(btn, true, 'Lagrer…');
@@ -886,24 +1020,23 @@ async function upload(blob) {
 /* Dinner form */
 function dinnerForm(linkId) {
   const l = linkId ? linkById(linkId) : null;
-  const pick = !l && S.links.length;
   return '<form class="form" id="f-dinner" novalidate>'
     + '<h2 class="sh-title">Logg middag</h2>'
     + (l ? '<div class="src"><span class="plat ' + esc(l.platform) + '">' + platLabel(l.platform) + '</span><b>' + esc(l.title) + '</b></div>' : '')
-    + (pick ? '<label class="fld"><span>Fra en lagret video <i>(valgfritt)</i></span><select class="inp" id="fd-link" name="linkId"><option value="">Ingen, eller en annen lenke</option>'
-      + S.links.map(x => '<option value="' + x.id + '">' + esc(x.title) + '</option>').join('') + '</select></label>' : '')
-    + '<label class="fld"><span>Hva lagde dere?</span><input class="inp" id="fd-title" name="title" maxlength="80" placeholder="F.eks. Smash-tacos" value="' + esc(l ? l.title : '') + '"></label>'
-    + (l ? '' : '<label class="fld" id="fd-url-wrap"><span>Lenke til videoen <i>(valgfritt)</i></span><input class="inp" id="fd-url" name="url" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://"></label>')
-    + '<label class="fld"><span>Dato</span><input class="inp" id="fd-date" name="madeOn" type="date" value="' + today() + '" max="' + today() + '"></label>'
-    + '<fieldset class="fld"><legend>Bilder</legend>'
+    + '<label class="fld"><span>Hva lagde dere?</span><input class="inp" id="fd-title" name="title" maxlength="80" autocomplete="off"' + (l ? '' : ' list="fd-titles"') + ' placeholder="F.eks. Smash-tacos" value="' + esc(l ? l.title : '') + '"></label>'
+    + (l ? '' : '<datalist id="fd-titles">' + S.links.map(x => '<option value="' + esc(x.title) + '"></option>').join('') + '</datalist>')
     + '<div class="ph-pick"><div class="ph-prev" id="fd-prev"></div><label class="ph-add">' + ICON.cam + '<span>Legg til bilde</span><input class="vh" id="fd-photos" type="file" accept="image/*" multiple></label></div>'
-    + '</fieldset>'
-    + '<fieldset class="fld"><legend>Din rating</legend>' + starInput('fd', 0)
-    + '<div class="seg" role="radiogroup" aria-label="Lage igjen?" style="margin-top:10px">'
+    + '<div class="fld"><span>Din rating</span>' + starInput('fd', 0) + '</div>'
+    + (partnerId() ? '<label class="toggle"><input type="checkbox" id="fd-ask" name="askrate" checked><span>Be ' + esc(partnerName()) + ' om å rate den</span></label>' : '')
+    + '<details class="more"><summary>Flere detaljer <i>(dato, kommentar, merkelapper)</i></summary><div class="form">'
+    + '<label class="fld"><span>Dato</span><input class="inp" id="fd-date" name="madeOn" type="date" value="' + today() + '" max="' + today() + '"></label>'
+    + (l ? '' : '<label class="fld"><span>Lenke til videoen <i>(valgfritt)</i></span><input class="inp" id="fd-url" name="url" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://"></label>')
+    + '<div class="seg" role="radiogroup" aria-label="Lage igjen?">'
     + ['ja', 'kanskje', 'nei'].map(k => '<label><input type="radio" name="again" value="' + k + '"><span>' + { ja: 'Lage igjen', kanskje: 'Kanskje', nei: 'Aldri igjen' }[k] + '</span></label>').join('')
     + '</div>'
-    + '<textarea class="inp" id="fd-comment" name="comment" rows="2" maxlength="400" placeholder="Hva syntes du? Noe å gjøre annerledes neste gang?" style="margin-top:10px"></textarea></fieldset>'
-    + (partnerId() ? '<label class="toggle"><input type="checkbox" id="fd-ask" name="askrate" checked><span>Be ' + esc(partnerName()) + ' om å rate den</span></label>' : '')
+    + '<label class="fld"><span>Kommentar</span><textarea class="inp" id="fd-comment" name="comment" rows="2" maxlength="400" placeholder="Hva syntes du? Noe å gjøre annerledes neste gang?"></textarea></label>'
+    + tagPicker(l ? l.tags : [], 'fd')
+    + '</div></details>'
     + '<p class="err" hidden></p>'
     + '<button class="btn primary big" type="submit">Lagre middag</button></form>';
 }
@@ -915,7 +1048,8 @@ async function saveDinner(f) {
   const st = S.sheet, btn = f.querySelector('[type=submit]');
   const title = f.title.value.trim();
   if (!title) return ferr(f, 'Gi middagen et navn først.');
-  let linkId = st.linkId || (f.linkId ? f.linkId.value : '') || null;
+  let linkId = st.linkId || null;
+  if (!linkId) { const hit = S.links.find(x => normName(x.title) === normName(title)); if (hit) linkId = hit.id; } // valgt fra listen over lagrede videoer
   let url = '', platform = null;
   const l = linkId ? linkById(linkId) : null;
   if (l) { url = l.url; platform = l.platform; } else linkId = null;
@@ -937,7 +1071,9 @@ async function saveDinner(f) {
     const ratings = {};
     if (st.stars || comment || ag) ratings[S.me] = { stars: st.stars || 0, comment, again: ag ? ag.value : null, at: Date.now() };
     const id = newId();
-    const ops = [{ op: 'set', coll: 'dinners', id, data: { title, url, platform, linkId, madeOn, photos: st.files.map(x => x.id), ratings, addedBy: S.me, createdAt: Date.now() } }];
+    let tags = readTags(f);
+    if (!tags.length && l) tags = (l.tags || []).slice();
+    const ops = [{ op: 'set', coll: 'dinners', id, data: { title, url, platform, linkId, madeOn, tags, photos: st.files.map(x => x.id), ratings, addedBy: S.me, createdAt: Date.now() } }];
     const ask = f.askrate && f.askrate.checked;
     if (ask) ops.push(plingOp('rating', title, { type: 'dinner', id }));
     S.tab = 'middager'; S.ds = 'nyeste';
@@ -990,6 +1126,7 @@ function dinnerDetail(d) {
     + '<form class="form" id="f-ddedit" data-id="' + d.id + '" novalidate>'
     + '<label class="fld"><span>Navn</span><input class="inp" id="de-title" name="title" maxlength="80" value="' + esc(d.title) + '"></label>'
     + '<label class="fld"><span>Dato</span><input class="inp" id="de-date" name="madeOn" type="date" value="' + esc(d.madeOn || '') + '" max="' + today() + '"></label>'
+    + tagPicker(d.tags, 'de')
     + '<p class="err" hidden></p>'
     + '<div class="sh-actions"><button type="button" class="btn ghost danger" data-act="del-dinner-ask">Slett middagen</button><button class="btn primary grow" type="submit">Lagre</button></div>'
     + (st.confirm === 'del' ? '<div class="confirm"><p>Slette «' + esc(d.title) + '» og bildene?</p><div><button type="button" class="btn primary" data-act="del-dinner-yes">Ja, slett</button><button type="button" class="btn ghost" data-act="confirm-no">Avbryt</button></div></div>' : '')
@@ -1097,13 +1234,13 @@ function showOverlay(p, more) {
   const ov = $('#ov');
   ov.innerHTML = '<div class="ov-card"><div class="ov-band gingham" aria-hidden="true"></div>'
     + '<p class="ov-from">Pling fra ' + esc(nm(p.from)) + ' · ' + ago(p.createdAt) + '</p>'
-    + '<div class="ov-dog">' + dog(def.dog, true) + '</div>'
+    + '<div class="ov-dog">' + dog(def.dog, true) + '<span class="ov-emoji" aria-hidden="true">' + def.emoji + '</span></div>'
     + '<h2>' + (p.kind === 'egen' ? 'Melding' : def.title) + '</h2>'
     + (def.msg ? '<p>' + esc(def.msg) + '</p>' : '')
     + (text ? '<p class="ov-text">' + esc(text) + '</p>' : '')
     + ref
     + '<div class="ov-actions">'
-    + '<button class="btn primary" data-act="ov-reply">' + (p.kind === 'klem' ? 'Send klem tilbake' : 'Send en klem') + '</button>'
+    + '<button class="btn ' + (ref ? 'ghost' : 'primary') + '" data-act="ov-reply">Svar</button>'
     + '<button class="btn ghost" data-act="ov-close">' + (more ? 'Neste pling (' + more + ' til)' : 'Lukk') + '</button>'
     + (more ? '<button class="ov-all" data-act="ov-all">Marker alle som sett</button>' : '')
     + '</div></div>';
@@ -1118,7 +1255,7 @@ function closeOverlay(all) {
   const ov = $('#ov'); ov.hidden = true; ov.innerHTML = '';
   markSeen(ids);
   renderBadge();
-  if (S.tab === 'pling') renderPling();
+  if (S.tab === 'hjem') renderPlingLog();
   setTimeout(checkOverlay, 300);
 }
 
@@ -1171,39 +1308,41 @@ function polsaBadge() {
   const turns = S.quiz.filter(q => quizState(q).mine).length;
   return turns + (streak().today ? 0 : 1);
 }
-function renderPolsa() {
+function weekRow() {
+  const t = today(), dow = (parseDay(t).getDay() + 6) % 7, mon = addDay(t, -dow);
+  let h = '';
+  ['M', 'T', 'O', 'T', 'F', 'L', 'S'].forEach((w, i) => {
+    const d = addDay(mon, i), f = S.docs.feeds[d], fut = d > t;
+    const who = f ? (f.by === S.me ? 'deg' : nm(f.by)) : '';
+    h += '<li class="' + (f ? 'fed' : fut ? 'future' : 'missed') + (d === t ? ' today' : '') + '" title="' + esc(fmtDay(d) + (f ? ': mat fra ' + who : fut ? '' : ': ingen mat')) + '">'
+      + '<i>' + (f ? esc((nm(f.by) || '?').charAt(0).toUpperCase()) : '') + '</i><span>' + w + '</span></li>';
+  });
+  return '<ol class="week" aria-label="Denne uka, mandag til søndag">' + h + '</ol>';
+}
+function renderPet() {
   const p = pet(), s = streak(), name = esc(p.name);
-  $('#h-polsa').textContent = p.name;
   const hr = new Date().getHours();
   const fresh = S.justFed && Date.now() - S.justFed < 8000;
   const v = !s.today ? 'sulten' : fresh ? 'klem' : (hr >= 22 || hr < 6) ? 'natt' : 'hei';
   let status;
-  if (!s.today) status = '<b>' + name + ' er sulten.</b> Ingen har gitt mat i dag.' + (s.n ? ' Streaken på ' + s.n + ' ' + dagerTxt(s.n) + ' står på spill.' : '');
+  if (!s.today) status = '<b>' + name + ' er sulten.</b> Ingen har gitt mat i dag.';
   else {
     const treats = Object.values(s.today.treats || {}).reduce((a, b) => a + b, 0);
-    status = '<b>Mett og fornøyd!</b> ' + esc(s.today.by === S.me ? 'Du' : nm(s.today.by)) + ' ga ' + name + ' mat kl. ' + hm(s.today.at) + '.'
-      + (treats ? ' Pluss ' + treats + (treats === 1 ? ' godbit' : ' godbiter') + ' i dag.' : '');
+    status = '<b>Mett og fornøyd!</b> ' + esc(s.today.by === S.me ? 'Du' : nm(s.today.by)) + ' ga mat kl. ' + hm(s.today.at) + '.'
+      + (treats ? ' ' + treats + (treats === 1 ? ' godbit' : ' godbiter') + ' i dag.' : '');
   }
   const myTreats = s.today ? ((s.today.treats || {})[S.me] || 0) : 0;
   const btn = !s.today
-    ? '<button class="btn primary big" data-act="feed">Gi ' + name + ' mat</button>'
-    : '<button class="btn big" data-act="treat"' + (myTreats >= 5 ? ' disabled' : '') + '>' + (myTreats >= 5 ? name + ' er stappmett' : 'Gi en godbit') + '</button>';
-  let days = '';
-  for (let i = 13; i >= 0; i--) {
-    const d = addDay(today(), -i), f = S.docs.feeds[d];
-    const wd = parseDay(d).toLocaleDateString('nb-NO', { weekday: 'short' }).charAt(0).toUpperCase();
-    days += '<li class="' + (f ? 'fed' : '') + (i === 0 ? ' today' : '') + '" title="' + esc(fmtDay(d) + (f ? ': ' + nm(f.by) : ': ingen mat')) + '"><i>' + (f ? esc((nm(f.by) || '?').charAt(0).toUpperCase()) : '') + '</i><span>' + wd + '</span></li>';
-  }
+    ? '<button class="btn primary" data-act="feed">Gi ' + name + ' mat</button>'
+    : '<button class="btn" data-act="treat"' + (myTreats >= 5 ? ' disabled' : '') + '>' + (myTreats >= 5 ? name + ' er stappmett' : 'Gi en godbit') + '</button>';
   const r = p.remind;
   $('#pet-slot').innerHTML = '<div class="petcard">'
-    + '<div class="pet-dog">' + dog(v, true) + '</div>'
-    + '<p class="pet-status">' + status + '</p>' + btn
-    + '<div class="streak"><div><b>' + s.n + '</b><span>' + dagerTxt(s.n) + ' på rad</span></div><div><b>' + s.best + '</b><span>beste streak</span></div></div>'
-    + '<ol class="days" aria-label="Hvem som ga mat de siste 14 dagene">' + days + '</ol>'
-    + '<p class="small">' + (r.on ? 'Varsel kl. ' + fmtTime(r.first) + (r.last !== r.first ? ' og ' + fmtTime(r.last) : '') + ' hvis ingen har gitt mat.' : 'Påminnelser er av.') + ' <button class="linkbtn" data-act="pet-settings">Endre</button></p>'
+    + '<div class="pet-top"><div class="pet-dog">' + dog(v, true) + '</div>'
+    + '<div class="pet-main"><div class="pet-h"><h2>' + name + '</h2><button class="iconbtn" data-act="pet-settings" aria-label="Navn og påminnelser for hunden">' + ICON.more + '</button></div>'
+    + '<p class="pet-status">' + status + '</p>' + btn + '</div></div>'
+    + '<div class="pet-week"><div class="streak-n"><b>' + s.n + '</b><span>' + dagerTxt(s.n) + '<br>på rad</span></div>' + weekRow() + '</div>'
+    + '<p class="small pet-foot">Beste streak: ' + s.best + ' ' + dagerTxt(s.best) + ' · ' + (r.on ? 'varsel kl. ' + fmtTime(r.first) + (r.last !== r.first ? ' og ' + fmtTime(r.last) : '') : 'påminnelser er av') + '</p>'
     + '</div>';
-  renderGameCard();
-  renderQuizCard();
 }
 function petSheet() {
   const p = pet(), r = p.remind;
@@ -1216,7 +1355,7 @@ function petSheet() {
     + '<p class="small">Påminnelsen går til alle telefoner som har slått på varsler.</p><p class="err" hidden></p>'
     + '<button class="btn primary big" type="submit">Lagre</button></form>';
 }
-function afterFeed() { setTimeout(() => { if (S.tab === 'polsa' && S.stage === 'app') renderPolsa(); }, 8200); }
+function afterFeed() { setTimeout(() => { if (S.tab === 'hjem' && S.stage === 'app') renderPet(); }, 8200); }
 
 /* ---------- Pølsehopp ---------- */
 const scoreOf = (date, uid) => (S.docs.scores[date + '_' + uid] || {}).best || 0;
@@ -1233,9 +1372,9 @@ function boardRows(ids, withRecord) {
 function renderGameCard() {
   const t = today(), ids = memberIds();
   const sc = ids.map(id => [id, scoreOf(t, id)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
-  const lead = !sc.length ? 'Ingen har spilt dagens bane ennå.' : sc[0][0] === S.me ? 'Du leder i dag!' : esc(nm(sc[0][0])) + ' leder i dag.';
-  $('#game-slot').innerHTML = '<div class="funcard"><div class="fc-head"><div><h3>Pølsehopp</h3><p class="small">Samme bane for dere begge i dag. ' + lead + '</p></div><div class="fc-art">' + dog('hei') + '</div></div>'
-    + '<ul class="board">' + boardRows(ids, true) + '</ul><button class="btn primary big" data-act="play-game">Spill dagens bane</button></div>';
+  const line = sc.length ? 'I dag: ' + sc.map(([id, v]) => esc(id === S.me ? 'Du' : nm(id)) + ' ' + v).join(' · ') : 'Ingen har spilt dagens bane ennå.';
+  $('#game-slot').innerHTML = '<div class="gamerow"><span class="gr-dog">' + dog('hei') + '</span><div><b>Pølsehopp</b><small>' + line + '</small></div>'
+    + '<button class="btn sm" data-act="play-game">Spill</button></div>';
 }
 function openGame() {
   if (!window.PolseHopp) return toast('Spillet lastet ikke. Prøv å åpne appen på nytt.');
@@ -1246,7 +1385,7 @@ function openGame() {
     startHtml: '<div class="g-card"><h3>Dagens bane</h3><p>Trykk for å hoppe, og hold inne for å hoppe høyere. Samle pølser for ekstra poeng.</p><p><b>Pass på fuglene:</b> de flyr akkurat der du hopper, så bli på bakken når de kommer.</p><button class="btn primary big" data-g="start">Start</button></div>',
     onOver: saveScore,
     renderOver: overHtml,
-    onClose: () => { document.body.classList.remove('locked'); S.game = null; if (S.tab === 'polsa') renderPolsa(); }
+    onClose: () => { document.body.classList.remove('locked'); S.game = null; if (S.tab === 'hjem') renderGameCard(); }
   });
 }
 function saveScore(r) {
@@ -1312,7 +1451,7 @@ function qRow(q) {
 }
 function renderQuizCard() {
   const pid = partnerId();
-  let h = '<div class="funcard"><div class="fc-head"><div><h3>Couple quiz</h3>';
+  let h = '<div class="funcard quizcard"><div class="fc-head"><div><h3>Couple quiz</h3>';
   if (!pid) {
     h += '<p class="small">Quizen åpner når kjæresten er med i appen.</p></div><div class="fc-art">' + dog('quiz') + '</div></div></div>';
     $('#quiz-slot').innerHTML = h; return;
@@ -1323,7 +1462,7 @@ function renderQuizCard() {
   if (st.hv) line.push('Enige i ' + st.agree + ' av ' + st.hv);
   const mine = S.quiz.filter(q => quizState(q).mine);
   h += '<p class="small">' + (line.length ? line.join(' · ') : 'Hvor godt kjenner dere hverandre? Start en runde.') + '</p></div><div class="fc-art">' + dog('quiz') + '</div></div>'
-    + (mine.length ? '<ul class="qlist">' + mine.slice(0, 4).map(qRow).join('') + '</ul>' : '')
+    + (mine.length ? '<p class="q-turn">Din tur' + (mine.length > 1 ? ' i ' + mine.length + ' runder' : '') + '</p><ul class="qlist">' + mine.slice(0, 4).map(qRow).join('') + '</ul>' : '')
     + '<div class="qbtns"><button class="btn" data-act="quiz-new" data-k="hvem">Hvem av oss?</button><button class="btn" data-act="quiz-new" data-k="meg">Kjenner du meg?</button><button class="btn" data-act="quiz-new" data-k="egen">Eget spørsmål</button></div>'
     + (S.quiz.length ? '<button class="linkbtn qall" data-act="quiz-all">Se alle runder (' + S.quiz.length + ')</button>' : '')
     + '</div>';
@@ -1454,10 +1593,10 @@ async function ensureCovers() {
   // Vent til alt som er lagt inn er sendt, ellers finnes ikke lenken på serveren ennå
   if (covering || flushing || S.queue.length || !S.online || !S.key || S.stage !== 'app') return;
   const made = madeMap();
-  const l = S.links.find(x => !x.thumb && !(made[x.id] && made[x.id].photo) && !coverAsked.has(x.id) && !(x.coverTried && Date.now() - x.coverTried < 864e5));
+  const l = S.links.find(x => (x.platform === 'tiktok' || x.platform === 'instagram') && (!x.thumb || x.thumbKind === 'ai') && x.coverChoice !== 'polsa'
+    && !(made[x.id] && made[x.id].photo) && !coverAsked.has(x.id) && !(x.coverTried && Date.now() - x.coverTried < 864e5));
   if (!l) return;
-  covering = true; coverAsked.add(l.id); S.coverBusy = l.id;
-  if (S.tab === 'inspo') changed();
+  covering = true; coverAsked.add(l.id);
   try {
     const r = await api('/api/cover', { method: 'POST', body: { linkId: l.id } });
     applyDocs(r.docs); save();
@@ -1468,21 +1607,23 @@ async function ensureCovers() {
   derive();
   const nl = linkById(l.id);
   if (nl && /^Oppskrift fra /.test(nl.title || '') && cleanTitle(nl.caption)) write([{ op: 'merge', coll: 'links', id: nl.id, data: { title: cleanTitle(nl.caption) } }]).catch(() => {});
-  covering = false; S.coverBusy = null;
+  covering = false;
   changed();
   setTimeout(ensureCovers, 600);
 }
 function coverEditBox(l) {
   const st = S.sheet || {}, social = l.platform === 'tiktok' || l.platform === 'instagram';
+  const thumb = l.thumbKind === 'ai' ? null : l.thumb;
+  const dis = st.coverBusy ? ' disabled' : '';
   return '<fieldset class="fld" id="cover-box"><legend>Bilde på kortet</legend><div class="coverrow">'
-    + '<span class="covprev t' + (hash(l.id) % 5 + 1) + '">' + (l.thumb ? '<img src="' + photoUrl(l.thumb) + '" alt="">' : '<span class="ini" aria-hidden="true">' + esc((l.title || '?').trim().charAt(0).toUpperCase()) + '</span>')
+    + '<span class="covprev t' + (hash(l.id) % 5 + 1) + '">' + (thumb ? '<img src="' + photoUrl(thumb) + '" alt="">' : coverArt(l))
     + (st.coverBusy ? '<span class="covwait">' + esc(st.coverBusy) + '</span>' : '') + '</span>'
     + '<div class="covbtns">'
-    + '<label class="btn sm">Bruk eget bilde<input class="vh" id="cover-file" type="file" accept="image/*"' + (st.coverBusy ? ' disabled' : '') + '></label>'
-    + '<button type="button" class="btn sm" data-act="cover-ai" data-id="' + l.id + '"' + (st.coverBusy ? ' disabled' : '') + '>' + (l.thumbKind === 'ai' ? 'Lag nytt AI-bilde' : 'Lag bilde med AI') + '</button>'
-    + (social ? '<button type="button" class="btn sm ghost" data-act="cover-video" data-id="' + l.id + '"' + (st.coverBusy ? ' disabled' : '') + '>Hent bildet fra videoen</button>' : '')
+    + '<label class="btn sm">Bruk eget bilde<input class="vh" id="cover-file" type="file" accept="image/*"' + dis + '></label>'
+    + (social ? '<button type="button" class="btn sm" data-act="cover-video" data-id="' + l.id + '"' + dis + '>Hent bildet fra videoen</button>' : '')
+    + (thumb ? '<button type="button" class="btn sm ghost" data-act="cover-polsa" data-id="' + l.id + '"' + dis + '>Bruk Pølsa-bildet</button>' : '')
     + '</div></div>'
-    + (l.thumbKind === 'ai' ? '<p class="small">Bildet er laget av AI ut fra navnet på retten, så det ser ikke nødvendigvis helt likt ut som originalen.</p>' : '')
+    + (!thumb ? '<p class="small">Pølsa-bildet velges ut fra ordene i navnet, som «pasta» eller «taco».</p>' : '')
     + (st.coverErr ? '<p class="err">' + esc(st.coverErr) + '</p>' : '')
     + '</fieldset>';
 }
@@ -1494,11 +1635,11 @@ function renderCoverBox() {
 }
 async function coverFromServer(id, mode) {
   const st = S.sheet; if (!st) return;
-  st.coverBusy = mode === 'ai' ? 'Lager bilde…' : 'Henter…'; st.coverErr = ''; renderCoverBox();
+  st.coverBusy = 'Henter…'; st.coverErr = ''; renderCoverBox();
   try {
     const r = await api('/api/cover', { method: 'POST', body: { linkId: id, mode } });
     applyDocs(r.docs); save();
-    toast(mode === 'ai' ? 'Nytt bilde er laget' : 'Bildet fra videoen er hentet');
+    toast('Bildet fra videoen er hentet');
   } catch (e) {
     if (e.docs) { applyDocs(e.docs); save(); }
     if (S.sheet === st) st.coverErr = e.code === 'offline' ? 'Du må være på nett for å hente bilde.' : errMsg(e);
@@ -1510,7 +1651,7 @@ async function coverFromServer(id, mode) {
 function playSheet(l) {
   const e = l.embed || embedFor(l.url);
   return '<div class="form"><h2 class="sh-title">' + esc(l.title) + '</h2>' + (l.author ? '<p class="small">' + esc(l.author) + ' på ' + platLabel(l.platform) + '</p>' : '')
-    + (!e && l.thumb ? '<img class="playimg" src="' + photoUrl(l.thumb) + '" alt="">' : '')
+    + (!e && l.thumb && l.thumbKind !== 'ai' ? '<img class="playimg" src="' + photoUrl(l.thumb) + '" alt="">' : '')
     + (e ? '<div class="vwrap ' + esc(l.platform) + '"><iframe src="' + esc(e) + '" title="' + esc(l.title) + '" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>' : '')
     + '<div class="sh-actions"><a class="btn grow" href="' + esc(safeHref(l.url)) + '" target="_blank" rel="noopener noreferrer">' + openLabel(l.platform) + ICON.ext + '</a>'
     + '<button class="btn primary grow" data-act="made" data-id="' + l.id + '">' + (madeMap()[l.id] ? 'Laget igjen' : 'Vi lagde den') + '</button></div>'
@@ -1584,7 +1725,24 @@ function shopOps(list, from) {
       open.push({ id, name: i.name, amount: i.amount, from: from ? [from] : [] });
     }
   }
+  // Husk hva dere kjøper, så det kan foreslås neste gang
+  const hist = (S.docs.settings.shophist || {}).items || {}, upd = {};
+  for (const i of list) {
+    const k = normName(i.name).slice(0, 60);
+    if (!k) continue;
+    const prev = upd[k] || hist[k];
+    const name = String(i.name).trim();
+    upd[k] = { name: (name.charAt(0).toUpperCase() + name.slice(1)).slice(0, 80), n: ((prev && prev.n) || 0) + 1, at: Date.now() };
+  }
+  if (Object.keys(upd).length) ops.push({ op: 'merge', coll: 'settings', id: 'shophist', data: { items: upd } });
   return ops;
+}
+function renderShopHelp(todo) {
+  const hist = Object.values((S.docs.settings.shophist || {}).items || {});
+  const onList = new Set(todo.map(i => normName(i.name)));
+  const often = hist.filter(h => h && h.name && !onList.has(normName(h.name))).sort((a, b) => b.n - a.n || b.at - a.at).slice(0, 10);
+  $('#shop-often').innerHTML = often.length ? '<span class="often-l">Ofte kjøpt:</span>' + often.map(h => '<button class="chip-b sm" data-act="shop-quick" data-name="' + esc(h.name) + '">+ ' + esc(h.name) + '</button>').join('') : '';
+  $('#shop-hist').innerHTML = hist.map(h => '<option value="' + esc(h.name) + '"></option>').join('');
 }
 function shopText() {
   const t = shopTodo();
@@ -1596,6 +1754,7 @@ function renderShop() {
     + ((i.from || []).length ? '<small>til ' + esc(i.from.join(', ')) + '</small>' : '') + '</span></label>'
     + '<button class="iconbtn" data-act="shop-del" data-id="' + i.id + '" aria-label="Fjern ' + esc(i.name) + '">' + ICON.x + '</button></li>';
   const list = $('#shop-list'), tools = $('#shop-tools');
+  renderShopHelp(todo);
   if (!items.length) {
     list.innerHTML = !S.synced ? loading('Henter handlelisten…') : emptyBox('handle', 'Handlelisten er tom', 'Skriv inn varer over, eller åpne en video i Inspo og trykk «Legg i handlelisten» på oppskriften.');
     tools.innerHTML = '';
@@ -1612,7 +1771,7 @@ function renderShop() {
 }
 
 /* ---------- the menu (built like Radar's) ---------- */
-const TABS = ['inspo', 'middager', 'handle', 'pling', 'polsa'];
+const TABS = ['hjem', 'inspo', 'middager', 'handle'];
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let lastLens = null, tabDragAt = 0, quietScrollUntil = 0;
 const scrollMem = {};
@@ -1732,6 +1891,8 @@ const ACT = {
   'tagf': b => { S.tagf = S.tagf === b.dataset.k ? null : b.dataset.k; renderInspo(); },
   'clear-f': () => { S.lf = 'alle'; S.tagf = null; S.q = ''; const q = $('#q-inspo'); if (q) q.value = ''; renderInspo(); },
   'ds': b => { S.ds = b.dataset.k; renderDinners(); },
+  'dtagf': b => { S.dtag = S.dtag === b.dataset.k ? null : b.dataset.k; renderDinners(); },
+  'dclear': () => { S.dtag = null; S.dq = ''; const q = $('#q-din'); if (q) q.value = ''; renderDinners(); },
   'add-link': () => openSheet(linkSheet(null), { type: 'link' }, 'Lagre video'),
   'edit-link': b => { const l = linkById(b.dataset.id); if (l) { openSheet(linkSheet(l), { type: 'link', id: l.id }, 'Endre oppskrift'); updateDetect(); } },
   'del-link-ask': () => { const c = $('#del-confirm'); if (c) { c.hidden = false; c.scrollIntoView({ block: 'nearest' }); } },
@@ -1821,14 +1982,26 @@ const ACT = {
   'close-sheet': () => closeSheet(),
   'ov-close': () => closeOverlay(false),
   'ov-all': () => closeOverlay(true),
-  'ov-reply': async b => {
-    busy(b, true, 'Sender…');
-    try { const r = await write([plingOp('klem', '', null)]); toast(r.queued ? QUEUED : 'Klem sendt!'); } catch (e) { toast(errMsg(e)); }
+  'ov-reply': () => {
     closeOverlay(false);
+    if (S.sheet) closeSheet();
+    S.tab = 'hjem'; render();
+    const sec = $('#pling-sec');
+    if (sec) quietScrollTo(Math.max(0, sec.getBoundingClientRect().top + window.scrollY - 80));
   },
+  'send-pling': async b => {
+    const k = b.dataset.k, def = PLINGS[k]; if (!def) return;
+    if (def.input) return openSheet(plingSheet(k), { type: 'pling', kind: k }, def.title);
+    if (b.dataset.busy) return;
+    b.dataset.busy = '1'; setTimeout(() => { delete b.dataset.busy; }, 700);
+    b.classList.remove('sent'); void b.offsetWidth; b.classList.add('sent');
+    try { const r = await write([plingOp(k, '', null)]); toast(r.queued ? QUEUED : def.emoji + ' ' + (k === 'klem' || k === 'kyss' ? def.title : '«' + def.title + '»') + ' sendt til ' + partnerName()); }
+    catch (e) { toast(errMsg(e)); }
+  },
+  'log-more': () => { S.logDays += 7; renderPlingLog(); },
   'ov-rate': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'middager'; render(); openDinner(id); },
-  'ov-quiz': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'polsa'; render(); openQuiz(id); },
-  'ov-game': () => { closeOverlay(false); S.tab = 'polsa'; render(); openGame(); },
+  'ov-quiz': b => { const id = b.dataset.id; closeOverlay(false); S.tab = 'hjem'; render(); openQuiz(id); },
+  'ov-game': () => { closeOverlay(false); S.tab = 'hjem'; render(); openGame(); },
   'ov-shop': () => { closeOverlay(false); S.tab = 'handle'; render(); window.scrollTo({ top: 0 }); },
   'recipe-make': async b => {
     const st = S.sheet, id = b.dataset.id; if (!st) return;
@@ -1843,8 +2016,16 @@ const ACT = {
     changed();
     if (S.sheet === st) renderRecipeBox();
   },
-  'cover-ai': b => coverFromServer(b.dataset.id, 'ai'),
   'cover-video': b => coverFromServer(b.dataset.id, 'video'),
+  'cover-polsa': async b => {
+    const id = b.dataset.id, old = (linkById(id) || {}).thumb;
+    try {
+      await write([{ op: 'merge', coll: 'links', id, data: { thumb: null, thumbKind: null, coverChoice: 'polsa' } }]);
+      if (old) api(photoUrl(old), { method: 'DELETE' }).catch(() => {});
+      toast('Kortet bruker Pølsa-bildet');
+    } catch (e) { toast(errMsg(e)); }
+    renderCoverBox();
+  },
   'recipe-edit': b => { const l = linkById(b.dataset.id); if (l) openSheet(recipeEditSheet(l), { type: 'recipe-edit', id: l.id }, 'Oppskrift'); },
   'recipe-add': async b => {
     const l = linkById(b.dataset.id); if (!l || !l.recipe) return;
@@ -1857,6 +2038,7 @@ const ACT = {
       toast(r.queued ? QUEUED : 'La til ' + picked.length + (picked.length === 1 ? ' vare' : ' varer') + ' i handlelisten');
     } catch (e) { toast(errMsg(e)); }
   },
+  'shop-quick': b => { write(shopOps([{ name: b.dataset.name, amount: '' }], null)).catch(e => toast(errMsg(e))); },
   'shop-del': b => { write([{ op: 'delete', coll: 'shop', id: b.dataset.id }]).catch(e => toast(errMsg(e))); },
   'shop-clear': () => {
     const ops = shopItems().filter(i => i.done).map(i => ({ op: 'delete', coll: 'shop', id: i.id }));
@@ -1866,7 +2048,7 @@ const ACT = {
   'shop-copy': () => copyText(shopText()),
   'feed': async () => {
     const t = today();
-    if (S.docs.feeds[t]) return renderPolsa();
+    if (S.docs.feeds[t]) return renderPet();
     S.justFed = Date.now();
     try { const r = await write([{ op: 'set', coll: 'feeds', id: t, data: { by: S.me, at: Date.now(), treats: {} } }]); toast(r.queued ? QUEUED : 'Nam! ' + pet().name + ' er mett.'); }
     catch (e) { toast(errMsg(e)); }
@@ -1970,7 +2152,7 @@ document.addEventListener('submit', async e => {
     const id = f.dataset.id, title = f.title.value.trim(), madeOn = f.madeOn.value;
     if (!title) return ferr(f, 'Middagen trenger et navn.');
     if (!parseDay(madeOn)) return ferr(f, 'Velg en dato.');
-    write([{ op: 'merge', coll: 'dinners', id, data: { title, madeOn } }])
+    write([{ op: 'merge', coll: 'dinners', id, data: { title, madeOn, tags: readTags(f) } }])
       .then(() => { toast('Lagret'); if (S.sheet) S.sheet.openMore = false; renderDetail(true); })
       .catch(err => ferr(f, errMsg(err)));
   } else if (f.id === 'f-shopadd') {
@@ -2063,6 +2245,7 @@ document.addEventListener('submit', async e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'q-inspo') { S.q = t.value; renderInspo(); }
+  else if (t.id === 'q-din') { S.dq = t.value; renderDinners(); }
   else if (t.id === 'fl-url') {
     const u = extractUrl(t.value);
     if (u && /\s/.test(t.value.trim())) t.value = u;
@@ -2083,11 +2266,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', async e => {
   const t = e.target;
-  if (t.id === 'fd-link') {
-    const l = linkById(t.value), ti = $('#fd-title'), uw = $('#fd-url-wrap');
-    if (l && ti && !ti.value.trim()) ti.value = l.title;
-    if (uw) uw.hidden = !!l;
-  } else if (t.id === 'fd-photos' && S.sheet && S.sheet.files) {
+  if (t.id === 'fd-photos' && S.sheet && S.sheet.files) {
     const st = S.sheet, files = [...t.files];
     t.value = '';
     for (const file of files) {
@@ -2126,6 +2305,9 @@ document.addEventListener('change', async e => {
     } catch (err) { st.coverErr = err.code === 'offline' ? 'Du må være på nett for å laste opp bilder.' : errMsg(err); }
     st.coverBusy = null;
     renderCoverBox();
+  } else if (t.name === 'tagOtherOn') {
+    const inp = t.closest('fieldset').querySelector('input[name=tagOther]');
+    if (inp) { inp.hidden = !t.checked; if (t.checked) inp.focus(); }
   } else if (t.dataset && t.dataset.shop) {
     const done = t.checked;
     write([{ op: 'merge', coll: 'shop', id: t.dataset.shop, data: { done, doneAt: done ? Date.now() : 0, doneBy: done ? S.me : null } }]).catch(e => toast(errMsg(e)));
@@ -2145,17 +2327,24 @@ document.addEventListener('error', e => {
 }, true);
 
 /* Keep in sync: when the app is visible, when the network returns, and when a push arrives */
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.stage === 'app') { sync(); checkPush().then(render); } });
+// Åpner du appen igjen etter en stund, starter den på startsiden
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  if (S.stage !== 'app') return;
+  if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.sheet && !S.game && S.tab !== 'hjem') { S.tab = 'hjem'; render(); quietScrollTo(0); }
+  sync(); checkPush().then(render);
+});
 window.addEventListener('online', () => { S.online = true; if (S.stage === 'app') sync(); });
 window.addEventListener('offline', () => { S.online = false; if (S.stage === 'app') render(); });
 setInterval(() => { if (document.visibilityState === 'visible' && S.stage === 'app') sync(); }, 15000);
-window.addEventListener('hashchange', () => { if (S.stage !== 'app') return; if (/polsa/.test(location.hash)) S.tab = 'polsa'; else if (/pling/.test(location.hash)) S.tab = 'pling'; else if (/handle/.test(location.hash)) S.tab = 'handle'; else return; render(); });
+window.addEventListener('hashchange', () => { if (S.stage === 'app' && /pling|polsa/.test(location.hash)) { S.tab = 'hjem'; render(); } });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
   navigator.serviceWorker.addEventListener('message', e => {
     const m = e.data || {};
     if (m.type === 'push') sync();
-    if (m.type === 'open') { if (S.stage === 'app') { S.tab = /polsa/.test(m.url || '') ? 'polsa' : 'pling'; render(); } sync(); }
+    if (m.type === 'open') { if (S.stage === 'app') { if (S.sheet) closeSheet(); S.tab = 'hjem'; render(); quietScrollTo(0); } sync(); }
   });
 }
 

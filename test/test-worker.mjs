@@ -335,9 +335,7 @@ console.log("Bilder på kortene");
 {
   const realFetch = globalThis.fetch;
   const jpg = new Uint8Array([0xff, 0xd8, 0xff, 9, 8, 7, 6, 0xff, 0xd9]);
-  const aiJpg = new Uint8Array([0xff, 0xd8, 0xff, 1, 1, 1, 1, 1, 0xff, 0xd9]);
-  const prompts = [];
-  let oembedOk = true;
+  let oembedOk = true, aiCalls = 0;
   globalThis.fetch = async (u, o) => {
     const s = String(u instanceof Request ? u.url : u);
     if (s.startsWith("https://www.tiktok.com/oembed")) return oembedOk
@@ -347,51 +345,48 @@ console.log("Bilder på kortene");
     if (s.startsWith("https://www.tiktok.com/") || s.startsWith("https://www.instagram.com/")) return new Response("nei", { status: 403 });
     return realFetch(u, o);
   };
-  env.AI = { run: async (model, input) => {
-    if (model.includes("flux")) { prompts.push(input.prompt); return { image: Buffer.from(aiJpg).toString("base64") }; }
-    if (model.includes("8b")) return { response: "\"Creamy red gochujang spaghetti topped with spring onions\"" };
-    throw new Error("ukjent modell " + model);
-  } };
+  env.AI = { run: async () => { aiCalls++; throw new Error("AI skal ikke brukes til bilder"); } };
   try {
     await call("/api/write", { method: "POST", key: K, body: { ops: [
       { op: "set", coll: "links", id: "c1", data: { url: "https://www.tiktok.com/@matglad/video/7421123456789", platform: "tiktok", title: "Kremet pasta", createdAt: 1 } },
       { op: "set", coll: "links", id: "c2", data: { url: "https://www.tiktok.com/@matglad/video/7421123456790", platform: "tiktok", title: "Gochujang-pasta", createdAt: 2 } },
-      { op: "set", coll: "links", id: "c3", data: { url: "https://matprat.no/oppskrifter/kos/lasagne/", platform: "web", title: "Lasagne", recipe: { photo: "Layered beef lasagna with bubbling golden cheese", ingredients: [], steps: [] }, createdAt: 3 } }
+      { op: "set", coll: "links", id: "c3", data: { url: "https://matprat.no/oppskrifter/kos/lasagne/", platform: "web", title: "Lasagne", createdAt: 3 } }
     ] } });
     r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c1" } });
     assert.equal(r.status, 200); assert.equal(r.data.kind, "video");
     assert.deepEqual(Buffer.from((await call("/api/photo/" + r.data.docs[0].data.thumb)).data), Buffer.from(jpg));
     assert.equal(r.data.docs[0].data.author, "Matglad");
-    assert.equal(prompts.length, 0);
-    ok("TikTok: bildet fra videoen brukes, uten AI");
+    ok("TikTok: bildet fra videoen hentes og lagres");
     oembedOk = false;
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c2" } });
-    assert.equal(r.data.kind, "ai");
-    assert.match(prompts[0], /Creamy red gochujang spaghetti topped with spring onions/);
-    assert.doesNotMatch(prompts[0], /"/);
-    assert.deepEqual(Buffer.from((await call("/api/photo/" + r.data.docs[0].data.thumb)).data), Buffer.from(aiJpg));
-    ok("TikTok sier nei: AI lager et matbilde av retten, med engelsk beskrivelse");
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3" } });
-    assert.equal(r.data.kind, "ai"); assert.match(prompts[1], /Layered beef lasagna/);
-    ok("vanlig nettside: beskrivelsen fra oppskriften brukes direkte");
-    const before = r.data.docs[0].data.thumb;
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3" } });
-    assert.equal(r.data.docs.length, 0);
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3", mode: "ai" } });
-    assert.notEqual(r.data.docs[0].data.thumb, before);
-    assert.equal((await call("/api/photo/" + before)).status, 404);
-    ok("har kortet bilde fra før, lages ikke nytt; «Lag nytt bilde» bytter og sletter det gamle");
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c2", mode: "video" } });
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c2", mode: "ai" } });
     assert.equal(r.status, 502); assert.equal(r.data.code, "no_image");
-    assert.ok(r.data.docs[0].data.thumb, "beholder AI-bildet");
-    env.AI = { run: async () => { throw new Error("AiError: 3036: You have used up your daily free allocation of 10,000 neurons."); } };
-    await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "links", id: "c4", data: { url: "https://x.no/a", platform: "web", title: "Taco", createdAt: 4 } }] } });
-    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c4" } });
-    assert.equal(r.status, 429); assert.equal(r.data.code, "ai_quota");
-    const c4 = (await call("/api/sync?since=0", { key: K })).data.docs.find((d) => d.id === "c4");
-    assert.ok(c4.data.coverTried > 0);
-    ok("ingen bilde fra videoen eller brukt opp kvoten: forståelig feil, og forsøket noteres så det ikke prøves om og om igjen");
+    assert.ok(r.data.docs[0].data.coverTried > 0); assert.equal(r.data.docs[0].data.thumb, undefined);
+    r = await call("/api/cover", { method: "POST", key: K, body: { linkId: "c3" } });
+    assert.equal(r.status, 502);
+    assert.equal(aiCalls, 0);
+    ok("ingen bilde fra videoen: forsøket noteres, appen viser Pølsa-bildet, og AI brukes aldri");
   } finally { globalThis.fetch = realFetch; }
+
+  // Engangsoppryddingen av gamle AI-bilder: kjøres når serveren starter
+  const fs = await import("node:fs");
+  const file = "/tmp/claude-0/-home-claude/f73fbbb6-339a-50d3-8838-b645ea576060/scratchpad/mig-test.sqlite";
+  try { fs.unlinkSync(file); } catch (e) {}
+  const one = makeEnv(file);
+  const c1 = (path, o = {}) => one.worker.fetch(new Request(BASE + path, { method: o.method || "GET", headers: Object.assign({ "Content-Type": o.type || "application/json" }, o.key ? { "X-Nokkel": o.key } : {}), body: o.body }), one.env);
+  await c1("/api/claim", { method: "POST", body: JSON.stringify({ key: "mig-nokkel-1" }) });
+  const ph = await (await c1("/api/photo", { method: "POST", key: "mig-nokkel-1", type: "image/jpeg", body: jpg })).json();
+  one.db.exec("DELETE FROM meta WHERE k = 'mig:noai'");
+  await c1("/api/write", { method: "POST", key: "mig-nokkel-1", body: JSON.stringify({ ops: [
+    { op: "set", coll: "links", id: "old", data: { title: "Taco", thumb: ph.id, thumbKind: "ai", createdAt: 1 } },
+    { op: "set", coll: "links", id: "own", data: { title: "Pizza", thumb: "eget", thumbKind: "own", createdAt: 2 } }
+  ] }) });
+  const two = makeEnv(file);
+  const res = await two.worker.fetch(new Request(BASE + "/api/sync?since=0", { headers: { "X-Nokkel": "mig-nokkel-1" } }), two.env).then((x) => x.json());
+  const old = res.docs.find((d) => d.id === "old").data, own = res.docs.find((d) => d.id === "own").data;
+  assert.equal(old.thumb, undefined); assert.equal(old.thumbKind, undefined); assert.equal(old.title, "Taco");
+  assert.equal(own.thumb, "eget");
+  assert.equal((await two.worker.fetch(new Request(BASE + "/api/photo/" + ph.id), two.env)).status, 404);
+  ok("gamle AI-bilder slettes én gang, egne bilder blir liggende");
 }
 
 pushServer.close();
