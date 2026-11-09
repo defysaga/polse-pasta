@@ -2,7 +2,7 @@
 //
 // Én Cloudflare Worker som både viser appen (filene i public/) og har et lite API under /api/.
 // Alle data ligger i én Durable Object («Hjem») med en SQLite-database:
-//   docs   – oppskrifter (links), middager (dinners), plinger (plings) og personer (members)
+//   docs   – oppskrifter (links), middager (dinners), restauranter (restaurants), plinger (plings) og personer (members)
 //   photos – bildene av middagene
 //   subs   – telefonene som har slått på varsler
 //   meta   – husnøkkelen (bare et hash) og varsel-nøklene (VAPID)
@@ -11,7 +11,7 @@
 // Hver halvtime sjekker serveren om hunden har fått mat i dag, og minner dere på det hvis ikke.
 
 const VERSION = 2;
-const COLLS = new Set(["members", "links", "dinners", "plings", "feeds", "scores", "quiz", "settings", "shop"]);
+const COLLS = new Set(["members", "links", "dinners", "restaurants", "plings", "feeds", "scores", "quiz", "settings", "shop"]);
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_DOC = 64 * 1024;
 const MAX_PHOTO = 1900 * 1024;
@@ -118,6 +118,91 @@ async function instagramPreview(href) {
     } catch (e) {}
   }
   return out;
+}
+
+/* ---------- andre lenker: steder på Google Maps og Apple Kart, og vanlige nettsider ---------- */
+const NOT_PUBLIC = /^(localhost|.*\.localhost|.*\.local|.*\.internal|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:.]+\])$/i;
+const plusDecode = (s) => { try { return decodeURIComponent(String(s).replace(/\+/g, " ")); } catch (e) { return String(s).replace(/\+/g, " "); } };
+// «Navn, Gate 1, 0181 Oslo» → navn «Navn», område «Oslo»
+function splitPlace(q) {
+  const parts = String(q || "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (!parts.length || /^-?\d+(\.\d+)?$/.test(parts[0])) return null;
+  const area = parts.length > 1 ? parts[parts.length - 1].replace(/^\d{3,5}\s+/, "").replace(/\d+/g, "").trim() : "";
+  return { name: parts[0].slice(0, 80), area: area && area !== parts[0] && area.length <= 30 ? area : "" };
+}
+// Navnet på stedet står ofte rett i kartlenken
+export function placeFromUrl(href) {
+  let u;
+  try { u = new URL(href); } catch (e) { return null; }
+  const h = u.hostname.toLowerCase();
+  if (/^consent\.google\./.test(h) || /^consent\.youtube\./.test(h)) { const c = u.searchParams.get("continue"); return c ? placeFromUrl(c) : null; }
+  if (/(^|\.)google\.[a-z.]+$/.test(h) && /^\/maps/.test(u.pathname) || h === "maps.google.com") {
+    const m = /\/maps\/(?:place|search)\/([^/@?]+)/.exec(u.pathname);
+    return splitPlace(plusDecode(m ? m[1] : (u.searchParams.get("q") || u.searchParams.get("query") || "")));
+  }
+  if (h === "maps.apple.com") return splitPlace(plusDecode(u.searchParams.get("name") || u.searchParams.get("q") || ""));
+  return null;
+}
+const SITE_WORDS = /^(hjem|home|forside|startside|velkommen|welcome|start|meny|menu)$/i;
+// Tittelen på en nettside, uten «| Nettstedsnavn» og lignende på slutten
+export function parseWebTitle(html) {
+  html = String(html || "");
+  const meta = {};
+  for (const tag of html.match(/<meta\s[^>]*>/gi) || []) {
+    const a = {};
+    tag.replace(/([a-zA-Z:_-]+)\s*=\s*("([^"]*)"|'([^']*)')/g, (m0, k, v, d, sq) => { a[k.toLowerCase()] = d !== undefined ? d : sq; return ""; });
+    const k = (a.property || a.name || "").toLowerCase();
+    if (k && a.content !== undefined && !(k in meta)) meta[k] = decodeHtml(a.content).replace(/\s+/g, " ").trim();
+  }
+  let title = meta["og:title"] || meta["twitter:title"] || "";
+  if (!title) { const t = /<title[^>]*>([^<]{1,300})<\/title>/i.exec(html); if (t) title = decodeHtml(t[1]).replace(/\s+/g, " ").trim(); }
+  const site = meta["og:site_name"] || "";
+  const parts = title.split(/\s+[|–—·•-]\s+/).map((x) => x.trim()).filter(Boolean);
+  let name = parts[0] || "";
+  if (parts.length > 1 && (SITE_WORDS.test(name) || (site && name.toLowerCase() === site.toLowerCase() && parts[1].length > 2))) name = SITE_WORDS.test(name) && site ? site : parts[1];
+  if (SITE_WORDS.test(name) && site) name = site;
+  let area = "";
+  const c = /^(.{2,60}),\s*([^,]{2,24})$/.exec(name);
+  if (c) { name = c[1]; area = c[2]; }
+  return { title: name.slice(0, 120), area, site: site.slice(0, 80) };
+}
+async function readHead(r, max) {
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let html = "";
+  while (html.length < max) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    html += dec.decode(value, { stream: true });
+    if (/<\/head>/i.test(html)) break;
+  }
+  try { reader.cancel(); } catch (e) {}
+  return html;
+}
+async function webPreview(href) {
+  let cur = href;
+  for (let hop = 0; hop < 6; hop++) {
+    const place = placeFromUrl(cur);
+    if (place) return { title: place.name, area: place.area, place: true };
+    let u;
+    try { u = new URL(cur); } catch (e) { return null; }
+    if (!/^https?:$/.test(u.protocol) || NOT_PUBLIC.test(u.hostname)) return null;
+    let r;
+    try { r = await fetchT(u.href, { redirect: "manual", headers: { "User-Agent": UA_MOBILE, Accept: "text/html,application/xhtml+xml", "Accept-Language": "nb-NO,nb;q=0.9,no;q=0.8,en;q=0.6" } }, 6000); }
+    catch (e) { return null; }
+    const loc = r.headers.get("location");
+    if (r.status >= 300 && r.status < 400 && loc) { try { r.body && r.body.cancel(); } catch (e) {} cur = new URL(loc, u.href).href; continue; }
+    if (!r.ok || !/html/i.test(r.headers.get("content-type") || "")) { try { r.body && r.body.cancel(); } catch (e) {} return null; }
+    const p = parseWebTitle(await readHead(r, 400 * 1024));
+    return p.title ? p : null;
+  }
+  return null;
+}
+// Instagram-profil (ikke en video): bruk brukernavnet som navn, f.eks. for en restaurant
+function instagramProfile(href) {
+  const m = /instagram\.com\/([A-Za-z0-9_.]{2,30})\/?(?:[?#]|$)/.exec(href || "");
+  if (!m || /^(p|reel|reels|tv|explore|stories|accounts)$/i.test(m[1])) return null;
+  const t = m[1].replace(/[._]+/g, " ").trim();
+  return { title: t.charAt(0).toUpperCase() + t.slice(1), author: "@" + m[1] };
 }
 
 /* ---------- small helpers ---------- */
@@ -507,7 +592,7 @@ export class Hjem {
     return Promise.all(subs.map(async (s) => {
       if (!(s.member in badges)) badges[s.member] = this.unseenFor(s.member);
       const payload = {
-        title: String(note.title || "Ny pling").slice(0, 80),
+        title: "Voff!",
         body: String(note.body || "").slice(0, 200),
         tag: "pling-" + p.id,
         url: "/#pling",
@@ -542,7 +627,7 @@ export class Hjem {
     if (!subs.length) return fail(404, "no_subs", "Denne telefonen har ikke slått på varsler ennå.");
     const vapid = await this.vapid();
     const results = await Promise.all(subs.map(async (s) => {
-      const r = await sendPush(s, { title: "Voff! Varslene virker", body: "Slik ser det ut når det kommer en pling.", tag: "test", url: "/#pling", badge: this.unseenFor(member) }, vapid, url.origin);
+      const r = await sendPush(s, { title: "Voff!", body: "Varslene virker. Slik ser det ut når det kommer en pling.", tag: "test", url: "/#pling", badge: this.unseenFor(member) }, vapid, url.origin);
       if (r.status === 404 || r.status === 410) this.sql.exec("DELETE FROM subs WHERE endpoint = ?", s.endpoint);
       return { host: new URL(s.endpoint).host, status: r.status, ok: r.ok, text: r.text };
     }));
@@ -589,7 +674,8 @@ export class Hjem {
     return r ? JSON.parse(r.data) : null;
   }
 
-  /* Forhåndsvisning: tittel, navn og bilde for en TikTok- eller Instagram-lenke. Bildet lagres her. */
+  /* Forhåndsvisning: tittel, navn og bilde for en TikTok- eller Instagram-lenke (bildet lagres her),
+     og navnet på stedet eller siden for kartlenker og andre nettsider. */
   async preview(url) {
     let u;
     try { u = new URL(String(url.searchParams.get("url") || "")); } catch (e) { return fail(400, "url", "Ugyldig lenke."); }
@@ -597,10 +683,11 @@ export class Hjem {
     const host = u.hostname.toLowerCase();
     let p = null;
     if (/(^|\.)tiktok\.com$/.test(host)) p = await tiktokPreview(u.href);
-    else if (/(^|\.)instagram\.com$/.test(host)) p = await instagramPreview(u.href);
+    else if (/(^|\.)instagram\.com$/.test(host)) p = instagramRef(u.href) ? await instagramPreview(u.href) : instagramProfile(u.href);
+    else p = await webPreview(u.href);
     if (!p) return json({ ok: true, found: false });
     const photo = p.thumb ? await this.storeRemoteImage(p.thumb) : null;
-    return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 3000), author: String(p.author || "").slice(0, 80), photo, canonical: p.canonical || null, embed: p.embed || null });
+    return json({ ok: true, found: !!(photo || p.title), title: String(p.title || "").slice(0, 3000), author: String(p.author || "").slice(0, 80), area: String(p.area || "").slice(0, 40), place: !!p.place, photo, canonical: p.canonical || null, embed: p.embed || null });
   }
 
   /* Bilde til kortet: bildet fra TikTok- eller Instagram-videoen. Finnes det ikke, viser appen et Pølsa-bilde. */
@@ -695,8 +782,8 @@ export class Hjem {
     const streak = this.streakBefore(date);
     const days = streak === 1 ? "dag" : "dager";
     const payload = which === "first"
-      ? { title: "🐶 " + name + " er sulten!", body: "Ingen har gitt " + name + " mat i dag. Trykk for å mate." }
-      : { title: "🐶 Siste sjanse i dag!", body: streak > 0 ? name + " har ikke fått mat i dag. Streaken på " + streak + " " + days + " ryker ved midnatt." : name + " har ikke fått mat i dag. Gi litt mat før du legger deg." };
+      ? { title: "Voff!", body: name + " er sulten! Ingen har gitt " + name + " mat i dag. Trykk for å mate." }
+      : { title: "Voff!", body: streak > 0 ? "Siste sjanse i dag! " + name + " har ikke fått mat, og streaken på " + streak + " " + days + " ryker ved midnatt." : "Siste sjanse i dag! " + name + " har ikke fått mat. Gi litt mat før du legger deg." };
     const results = await this.pushAll(Object.assign(payload, { tag: "pet-" + date, url: "/#polsa" }), origin && !/hjem\.internal/.test(origin) ? origin : (this.meta("origin") || "https://polse-pasta.workers.dev"));
     return json({ ok: true, sent: results.filter((r) => r.ok).length, which });
   }

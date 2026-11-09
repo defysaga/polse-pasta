@@ -80,6 +80,19 @@
     <div id="din-list"></div>
   </section>
 
+  <section class="view" id="v-restaurant" aria-labelledby="h-restaurant" hidden>
+    <div class="sec-head">
+      <h2 id="h-restaurant">Restauranter</h2>
+      <button class="btn primary" data-act="add-rest">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>Legg til</button>
+    </div>
+    <p class="sec-sub">Steder dere vil prøve, og hva dere syntes etterpå.</p>
+    <div id="rest-search-wrap" hidden><label class="vh" for="q-rest">Søk i restauranter</label><input id="q-rest" class="search" type="search" placeholder="Søk på navn, sted eller merkelapp" autocomplete="off"></div>
+    <div class="chips" id="rest-chips"></div>
+    <div class="chips" id="rest-tags" hidden></div>
+    <div id="rest-list"></div>
+  </section>
+
   <section class="view" id="v-handle" aria-labelledby="h-handle" hidden>
     <div class="sec-head">
       <h2 id="h-handle">Handleliste</h2>
@@ -115,6 +128,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12.5" r="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.6 3.5v5a1.9 1.9 0 0 0 1.9 1.9V21M4.5 3.5v4.5M6.4 3.5v5M21.4 3.5c-1.6 1-2.1 3-2.1 6.5h2.1V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="tab-label">Middager</span>
       </button>
+      <button class="tab" type="button" data-act="tab" data-k="restaurant">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 10.4V20h14.8v-9.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M3 4.5h18l-.9 3.9a2.2 2.2 0 0 1-4.3.3 2.4 2.4 0 0 1-4.7 0 2.4 2.4 0 0 1-4.7 0 2.2 2.2 0 0 1-4.3-.3z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M10 20v-5.2h4V20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>
+        <span class="tab-label">Restaurant</span>
+      </button>
       <button class="tab" type="button" data-act="tab" data-k="handle">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.4l2.2 10.5a1.5 1.5 0 0 0 1.5 1.2h8.3a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.5" cy="19.5" r="1.6" fill="currentColor"/><circle cx="17" cy="19.5" r="1.6" fill="currentColor"/></svg>
         <span class="tab-label">Handle</span>
@@ -139,6 +156,7 @@
 
 <script src="/quiz-data.js"></script>
 <script src="/game.js"></script>
+<script src="/polsa-emoji.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

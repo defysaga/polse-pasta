@@ -177,8 +177,8 @@ const claims = verifyVapid(h.authorization, `http://127.0.0.1:${pushPort}/kari`)
 assert.equal(claims.sub, BASE);
 assert.ok(h.authorization.endsWith("k=" + vapidPub));
 const payload = JSON.parse(decrypt(received[0].body, kariPhone));
-assert.deepEqual(payload, { title: "Mads: Jeg er sulten", body: "Magen rumler. Hva blir det til middag?", tag: "pling-p1", url: "/#pling", badge: 1 });
-ok("pling fra Mads → kryptert varsel til Karis telefon, med riktig tekst og tall på ikonet");
+assert.deepEqual(payload, { title: "Voff!", body: "Magen rumler. Hva blir det til middag?", tag: "pling-p1", url: "/#pling", badge: 1 });
+ok("pling fra Mads → kryptert varsel til Karis telefon: «Voff!» og meldingen, og tall på ikonet");
 
 received.length = 0;
 await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "merge", coll: "plings", id: "p1", data: { seenBy: { kari: Date.now() } } }] } });
@@ -196,7 +196,8 @@ assert.equal((await call("/api/test-push", { method: "POST", key: K, body: { mem
 received.length = 0;
 r = await call("/api/test-push", { method: "POST", key: K, body: { member: "kari" } });
 assert.equal(r.data.ok, true); assert.equal(received.length, 1);
-assert.equal(JSON.parse(decrypt(received[0].body, kariPhone)).title, "Voff! Varslene virker");
+const testNote = JSON.parse(decrypt(received[0].body, kariPhone));
+assert.equal(testNote.title, "Voff!"); assert.match(testNote.body, /Varslene virker/);
 ok("utløpt abonnement fjernes; testvarsel virker");
 
 for (let i = 0; i < 310; i += 50) {
@@ -228,21 +229,21 @@ console.log("Hunden og påminnelser");
   c = await cron(Date.UTC(2026, 9, 22, 16, 1)); // 18:01 Oslo
   assert.equal(c.which, "first"); assert.equal(received.length, 2);
   const first = JSON.parse(decrypt(received.find((x) => x.url === "/kari").body, kariPhone));
-  assert.equal(first.title, "🐶 Pølsa er sulten!"); assert.equal(first.url, "/#polsa");
+  assert.equal(first.title, "Voff!"); assert.match(first.body, /^Pølsa er sulten!/); assert.equal(first.url, "/#polsa");
   c = await cron(Date.UTC(2026, 9, 22, 16, 5));
   assert.equal(c.why, "sent");
   ok("kl. 18 uten mat: begge får «Pølsa er sulten!», bare én gang");
   received.length = 0;
   c = await cron(Date.UTC(2026, 9, 22, 19, 30)); // 21:30 Oslo
   const last = JSON.parse(decrypt(received.find((x) => x.url === "/mads").body, madsPhone));
-  assert.match(last.body, /Streaken på 3 dager ryker ved midnatt/);
+  assert.equal(last.title, "Voff!"); assert.match(last.body, /^Siste sjanse i dag!.*streaken på 3 dager ryker ved midnatt/);
   ok("kl. 21.30: «Siste sjanse», med streaken på 3 dager");
   await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "feeds", id: "2026-10-23", data: { by: "mads", at: 2 } }, { op: "set", coll: "settings", id: "pet", data: { name: "Frank", remind: { on: true, first: "12:00", last: "20:00" } } }] } });
   received.length = 0;
   assert.equal((await cron(Date.UTC(2026, 9, 23, 10, 0))).why, "fed");
   assert.equal(received.length, 0);
   assert.equal((await cron(Date.UTC(2026, 9, 24, 10, 0))).which, "first");
-  assert.equal(JSON.parse(decrypt(received.find((x) => x.url === "/kari").body, kariPhone)).title, "🐶 Frank er sulten!");
+  assert.match(JSON.parse(decrypt(received.find((x) => x.url === "/kari").body, kariPhone)).body, /^Frank er sulten!/);
   await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "merge", coll: "settings", id: "pet", data: { remind: { on: false } } }] } });
   assert.equal((await cron(Date.UTC(2026, 9, 24, 18, 0))).why, "off");
   ok("ingen påminnelse når hunden er matet; eget navn og egne tider; kan skrus av");
@@ -270,7 +271,12 @@ console.log("Forhåndsvisning");
     if (s.startsWith("https://vm.tiktok.com/")) return Object.defineProperty(new Response("", { status: 200 }), "url", { value: "https://www.tiktok.com/@matglad/video/7421123456789?_r=1" });
     if (s.startsWith("https://www.tiktok.com/oembed")) return new Response(JSON.stringify({ title: "Kremet gochujang-pasta #pasta #fyp", author_name: "Matglad", thumbnail_url: "https://p16-sign.tiktokcdn-eu.com/obj/thumb.jpeg?x=1" }), { headers: { "Content-Type": "application/json" } });
     if (s.startsWith("https://p16-sign.tiktokcdn-eu.com/")) return new Response(jpg, { headers: { "Content-Type": "image/jpeg" } });
-    if (s.startsWith("https://evil.example.com")) throw new Error("should not fetch");
+    if (/^https?:\/\/(localhost|127\.|169\.254\.|10\.|\[)/.test(s) || /\.internal\//.test(s)) throw new Error("should not fetch " + s);
+    if (s.startsWith("https://maps.app.goo.gl/abc")) return new Response(null, { status: 302, headers: { Location: "https://consent.google.com/m?continue=https://www.google.com/maps/place/Trattoria+Popolare/@59.91,10.75,17z&gl=NO" } });
+    if (s.startsWith("https://maps.app.goo.gl/loop")) return new Response(null, { status: 302, headers: { Location: "https://maps.app.goo.gl/loop" } });
+    if (s.startsWith("https://www.mammapizza.no/")) return new Response('<html><head><meta charset="utf-8"><title>x</title><meta content="Hjem" property="og:title"><meta property="og:site_name" content="Mamma Pizza"></head><body>' + "x".repeat(500000) + "</body></html>", { headers: { "Content-Type": "text/html; charset=utf-8" } });
+    if (s.startsWith("https://matblogg.no/")) return new Response("<head><title>Kremet kyllinggryte – Matbloggen</title></head>", { headers: { "Content-Type": "text/html" } });
+    if (s.startsWith("https://files.example.com/")) return new Response("%PDF", { headers: { "Content-Type": "application/pdf" } });
     return realFetch(u, o);
   };
   try {
@@ -285,10 +291,39 @@ console.log("Forhåndsvisning");
     assert.deepEqual(Buffer.from(img.data), Buffer.from(jpg));
     ok("TikTok-kortlenke: tittel, navn og bilde hentes, bildet lagres hos oss");
     assert.equal((await call("/api/preview?url=" + encodeURIComponent("https://www.tiktok.com/@x/video/123456789"))).status, 401);
-    r = await call("/api/preview?url=" + encodeURIComponent("https://evil.example.com/a"), { key: K });
-    assert.equal(r.data.found, false);
-    ok("forhåndsvisning krever husnøkkel og henter bare fra TikTok og Instagram");
+    for (const bad of ["http://localhost:8080/admin", "http://127.0.0.1/", "http://169.254.169.254/latest/meta-data", "http://10.0.0.1/", "https://hjem.internal/_cron", "http://[::1]/", "ftp://example.com/x", "https://files.example.com/meny.pdf"]) {
+      r = await call("/api/preview?url=" + encodeURIComponent(bad), { key: K });
+      assert.ok(r.status === 400 || r.data.found === false, bad);
+    }
+    ok("forhåndsvisning krever husnøkkel, og henter aldri fra interne adresser eller andre ting enn nettsider");
+
+    const pv = async (u) => (await call("/api/preview?url=" + encodeURIComponent(u), { key: K })).data;
+    r = await pv("https://maps.app.goo.gl/abc123");
+    assert.equal(r.found, true); assert.equal(r.title, "Trattoria Popolare"); assert.equal(r.place, true);
+    r = await pv("https://maps.apple.com/?address=Torggata%205,%200181%20Oslo&q=Illegal%20Burger&ll=59.9,10.7");
+    assert.equal(r.title, "Illegal Burger");
+    r = await pv("https://www.google.com/maps/search/?api=1&query=Mamma+Pizza%2C+Torggata+5%2C+0181+Oslo");
+    assert.equal(r.title, "Mamma Pizza"); assert.equal(r.area, "Oslo");
+    assert.equal((await pv("https://maps.app.goo.gl/loop")).found, false);
+    ok("Google Maps (også kortlenker og samtykkesiden) og Apple Kart: navnet på stedet hentes fra lenken");
+    r = await pv("https://www.mammapizza.no/");
+    assert.equal(r.title, "Mamma Pizza");
+    r = await pv("https://matblogg.no/kyllinggryte");
+    assert.equal(r.title, "Kremet kyllinggryte"); assert.equal(r.photo, null);
+    r = await pv("https://www.instagram.com/trattoria.popolare/");
+    assert.equal(r.title, "Trattoria popolare"); assert.equal(r.author, "@trattoria.popolare");
+    ok("andre nettsider: tittelen uten nettstedsnavnet; Instagram-profil gir navnet");
   } finally { globalThis.fetch = realFetch; }
+}
+
+console.log("Restauranter");
+{
+  r = await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "set", coll: "restaurants", id: "r1", data: { name: "Trattoria Popolare", url: "https://maps.app.goo.gl/abc123", area: "Oslo", tags: ["Italiensk"], visits: [], ratings: {}, addedBy: "mads", createdAt: 1 } }] } });
+  assert.equal(r.status, 200);
+  await call("/api/write", { method: "POST", key: K, body: { ops: [{ op: "merge", coll: "restaurants", id: "r1", data: { visits: ["2026-11-09"], ratings: { kari: { stars: 5, at: 2 } } } }] } });
+  const doc = (await call("/api/sync?since=0", { key: K })).data.docs.find((d) => d.coll === "restaurants" && d.id === "r1");
+  assert.deepEqual(doc.data.visits, ["2026-11-09"]); assert.equal(doc.data.ratings.kari.stars, 5); assert.equal(doc.data.name, "Trattoria Popolare");
+  ok("restauranter lagres, besøk og rating flettes inn");
 }
 
 console.log("Oppskrifter");

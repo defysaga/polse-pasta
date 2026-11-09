@@ -25,6 +25,9 @@ globalThis.fetch = async (u, o) => {
   if (url.startsWith("https://vm.tiktok.com/")) return Object.defineProperty(new Response(""), "url", { value: "https://www.tiktok.com/@matglad/video/7421123456789?_r=1" });
   if (url.startsWith("https://www.tiktok.com/oembed")) return new Response(JSON.stringify({ title: "Smash-tacos med lime-mayo 🌮 #taco #fyp #middag", author_name: "Matglad", thumbnail_url: "https://p16-sign.tiktokcdn-eu.com/thumb.jpeg" }), { headers: { "Content-Type": "application/json" } });
   if (url.startsWith("https://p16-sign.tiktokcdn-eu.com/")) return new Response(THUMB, { headers: { "Content-Type": "image/png" } });
+  if (url.startsWith("https://maps.app.goo.gl/rest1")) return new Response(null, { status: 302, headers: { Location: "https://www.google.com/maps/place/Trattoria+Popolare/@59.91,10.75,17z" } });
+  if (url.startsWith("https://matblogg.no/")) return new Response("<head><title>Kremet kyllinggryte – Matbloggen</title></head>", { headers: { "Content-Type": "text/html" } });
+  if (url.startsWith("https://www.matprat.no/")) return new Response("<head><title>Oppskrift | MatPrat</title></head>", { headers: { "Content-Type": "text/html" } });
   return realFetch(u, o);
 };
 let THUMB = null;
@@ -190,6 +193,23 @@ try {
   await shot(A, "e7-kyss");
   await A.click('[data-act="ov-close"]');
   log("«Svar» tar Kari til plingene på startsiden, og ett trykk på Kyss sender det til Mads");
+
+  // «På vei hjem» med minutter, og varselteksten: bare «Voff!» og meldingen
+  await B.click('#pl-main .eta[data-min="20"]');
+  await A.waitForSelector('#ov:not([hidden]) .ov-card', { timeout: 20000 });
+  if ((await A.textContent("#ov h2")).trim() !== "På vei hjem" || (await A.textContent("#ov .ov-text")).trim() !== "Hjemme om ca. 20 min") throw new Error("på vei hjem: " + await A.textContent("#ov .ov-card"));
+  if (!(await A.$("#ov .ov-emoji svg.pe"))) throw new Error("Pølsa-emojien mangler i plingen");
+  const notes = await A.evaluate(async (k) => (await (await fetch("/api/sync?since=0", { headers: { "X-Nokkel": k } })).json()).docs.filter((d) => d.coll === "plings").map((d) => [d.data.kind, d.data.note]), key);
+  const nv = Object.fromEntries(notes);
+  if (nv.pavei.title !== "Voff!" || nv.pavei.body !== "Kari er på vei hjem! Hjemme om ca. 20 min.") throw new Error("varsel: " + JSON.stringify(nv.pavei));
+  if (nv.kyss.title !== "Voff!" || nv.kyss.body !== "Kari sender deg et kyss") throw new Error("varsel: " + JSON.stringify(nv.kyss));
+  if (nv.handle.body !== "Mads: Kan du ta med parmesan og basilikum?") throw new Error("varsel: " + JSON.stringify(nv.handle));
+  await shot(A, "k5-pa-vei-hjem");
+  await A.click('[data-act="ov-close"]');
+  const hasEmoji = await B.evaluate(() => /\p{Extended_Pictographic}/u.test(document.querySelector("#pling-sec").textContent + document.querySelector("#pl-log").textContent));
+  if (hasEmoji) throw new Error("vanlige emojier i plingene");
+  if (!(await B.$("#pl-log .pd-emo svg.pe"))) throw new Error("Pølsa-emojiene mangler i loggen");
+  log("Kari trykker «20 min» ved «På vei hjem»; varslene sier bare «Voff!» og meldingen («" + nv.pavei.body + "»), og plingene bruker Pølsa-emojier");
 
   // Mads sees Kari's rating
   await goTab(A, "middager");
@@ -366,13 +386,16 @@ try {
     await A.click('#f-link [type=submit]');
     await A.waitForTimeout(400);
   }
-  const emo = async (t) => A.textContent('.rcard:has-text("' + t + '") .cover .cov-emo');
-  if ((await emo("Lasagne")) !== "🍝" || (await emo("Laks med ris")) !== "🐟") throw new Error("feil emoji");
+  for (const [t, food] of [["Lasagne", "pasta"], ["Laks med ris", "fish"]]) {
+    if (!(await A.$('.rcard:has-text("' + t + '") .cover svg'))) throw new Error("ingen Pølsa-bilde på " + t);
+    const f = await A.evaluate((x) => PE.foodFor({ title: x }), t);
+    if (f !== food) throw new Error(t + " fikk " + f);
+  }
   if (aiImages) throw new Error("AI ble brukt til bilder");
   await A.evaluate(() => window.scrollTo(0, 0));
   await A.waitForTimeout(300);
   await shot(A, "i1-polsa-bilder");
-  log("kort uten bilde fra videoen får Pølsa med emoji ut fra navnet: Lasagne 🍝, Laks med ris 🐟, ingen AI");
+  log("kort uten bilde fra videoen får Pølsa med mat ut fra navnet: Lasagne → pasta, Laks med ris → fisk, ingen AI");
   await A.click('.rcard:has-text("Lasagne") [data-act="edit-link"]');
   await A.waitForSelector("#cover-box .cover");
   if (await A.$('[data-act="cover-ai"]')) throw new Error("AI-knappen er der fortsatt");
@@ -398,13 +421,75 @@ try {
   await A.fill("#q-din", "");
   log("søk i Inspo finner ingrediensen «kjøttdeig» i Smash-tacos, og søk i Middager virker");
 
+  // --- lim inn fra Notater (Inspo): lenker med navn fra HTML, kortlenke som allerede er lagret ---
+  await goTab(A, "inspo");
+  await A.click('#v-inspo .sec-head [data-act="add-link"]');
+  await A.click('#f-link [data-act="import"]');
+  await A.waitForSelector("#imp-text");
+  await A.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.setData("text/html", '<div>Kremet kyllinggryte</div><div><a href="https://matblogg.no/kyllinggryte">https://matblogg.no/kyllinggryte</a></div><div><a href="https://vm.tiktok.com/ZMabc123/">Smash-tacos</a></div>');
+    dt.setData("text/plain", "Kremet kyllinggryte\nhttps://matblogg.no/kyllinggryte\nSmash-tacos");
+    document.querySelector("#imp-text").dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await A.waitForFunction(() => document.querySelectorAll(".imp-row").length === 2 && !/Henter/.test(document.querySelector("#imp-list").textContent), null, { timeout: 15000 });
+  const impT = await A.$$eval(".imp-row [data-imp-title]", (els) => els.map((e) => e.value));
+  if (impT[0] !== "Kremet kyllinggryte" || !(await A.$('.imp-row.ex:has-text("Finnes allerede")'))) throw new Error("import: " + impT.join(" | "));
+  if ((await A.textContent('[data-act="imp-save"]')).trim() !== "Legg til 1 video") throw new Error("knapp: " + await A.textContent('[data-act="imp-save"]'));
+  await shot(A, "j3-import-inspo");
+  await A.click('[data-act="imp-save"]');
+  await A.waitForSelector('.rcard:has-text("Kremet kyllinggryte")');
+  await B.waitForSelector('#ov:not([hidden]) .ov-card', { timeout: 20000 });
+  if (!/Kremet kyllinggryte/.test(await B.textContent("#ov .ov-card"))) throw new Error("Kari fikk ikke pling om den nye videoen");
+  log("lim inn fra Notater: lenken får navnet fra linjen over, TikTok-kortlenken som alt er lagret hoppes over, og Kari får én pling");
+
+  // --- restauranter ---
+  await closeOv(A); await closeOv(B);
+  await goTab(A, "restaurant");
+  await A.waitForSelector("#rest-list .empty");
+  await A.click('#v-restaurant .sec-head [data-act="add-rest"]');
+  await A.fill("#fr-url", "https://maps.app.goo.gl/rest1");
+  await A.waitForFunction(() => document.querySelector("#fr-name")?.value === "Trattoria Popolare", null, { timeout: 8000 });
+  await A.click('#f-rest label.chip:has-text("Italiensk")');
+  await shot(A, "j1-ny-restaurant");
+  await A.click('#f-rest [type=submit]');
+  await A.waitForSelector('#rest-list .drow:has-text("Trattoria Popolare") .cover svg');
+  if ((await A.evaluate(() => PE.foodFor({ title: "Trattoria Popolare", tags: ["Italiensk"] }))) !== "pasta") throw new Error("restaurantbildet");
+  log("ny restaurant fra en Google Maps-kortlenke: navnet fylles inn av seg selv, og Pølsa får pasta fordi den er italiensk");
+  await B.waitForSelector('#ov:not([hidden]) [data-act="ov-rest"]', { timeout: 20000 });
+  await B.click('[data-act="ov-rest"]');
+  await B.waitForSelector('#sheet [data-act="rest-visit"]');
+  await B.click('#sheet [data-act="rest-visit"]');
+  await B.waitForSelector('#sheet .rblock [data-star="5"]');
+  await B.click('#sheet .rblock [data-star="5"]');
+  await B.waitForTimeout(500);
+  await shot(B, "j2-restaurant-detalj");
+  await B.click("#sheet .x");
+  log("Kari får pling, åpner stedet, trykker «Vi har vært her» og gir 5 stjerner");
+  await A.waitForFunction(() => document.querySelector('#rest-list .drow:has(.dt) .davg b')?.textContent === "5", null, { timeout: 20000 });
+  log("Mads ser snittet 5 på stedet");
+
+  await A.click('#v-restaurant .sec-head [data-act="add-rest"]');
+  await A.click('#f-rest [data-act="import"]');
+  await A.fill("#imp-text", "Restauranter å prøve:\nMamma Pizza\n\nhttps://maps.app.goo.gl/rest1\nIllegal Burger https://maps.apple.com/?q=Illegal%20Burger&ll=59.9,10.7\n• Hrimnir Ramen");
+  await A.waitForFunction(() => document.querySelectorAll(".imp-row").length === 4 && !/Henter/.test(document.querySelector("#imp-list").textContent), null, { timeout: 15000 });
+  const rNames = await A.$$eval(".imp-row [data-imp-title]", (els) => els.map((e) => e.value));
+  if (rNames.join("|") !== "Mamma Pizza|Trattoria Popolare|Illegal Burger|Hrimnir Ramen") throw new Error("import: " + rNames.join(" | "));
+  if ((await A.textContent('[data-act="imp-save"]')).trim() !== "Legg til 3 steder") throw new Error("knapp: " + await A.textContent('[data-act="imp-save"]'));
+  await shot(A, "j4-import-restauranter");
+  await A.click('[data-act="imp-save"]');
+  await A.waitForFunction(() => document.querySelectorAll("#rest-list .drow").length === 4, null, { timeout: 8000 });
+  await A.waitForTimeout(300);
+  await shot(A, "j5-restauranter");
+  log("lim inn en liste fra Notater: navn uten lenke blir steder, Trattoria finnes fra før, 3 nye legges til");
+
   // --- the menu ---
   await closeOv(A);
   await goTab(A, "hjem");
   await A.waitForTimeout(400);
   const lens0 = await A.$eval("#tab-lens", (e) => e.style.transform);
   if (!/translate3d\(0(\.0+)?%/.test(lens0)) throw new Error("linsen står ikke på Hjem: " + lens0);
-  if ((await A.$$(".tabbar .tab")).length !== 4) throw new Error("menyen skal ha fire faner");
+  if ((await A.$$(".tabbar .tab")).length !== 5) throw new Error("menyen skal ha fem faner");
   await shot(A, "h1-meny");
   await A.evaluate(() => window.scrollTo(0, 0)); // Hjem husker hvor langt ned du var
   await A.waitForTimeout(500);
@@ -421,11 +506,11 @@ try {
   await goTab(A, "handle");
   await A.waitForTimeout(600);
   const lens1 = await A.$eval("#tab-lens", (e) => e.style.transform);
-  if (!/translate3d\(300/.test(lens1)) throw new Error("linsen flyttet seg ikke: " + lens1);
+  if (!/translate3d\(400/.test(lens1)) throw new Error("linsen flyttet seg ikke: " + lens1);
   await A.reload();
   await A.waitForSelector("#app:not([hidden])");
   if (!(await A.$("#v-hjem:not([hidden])"))) throw new Error("starter ikke på startsiden");
-  log("menyen har fire faner, linsen følger fanen, den krymper når du scroller, og appen starter alltid på Hjem");
+  log("menyen har fem faner, linsen følger fanen, den krymper når du scroller, og appen starter alltid på Hjem");
   await closeOv(B);
   await goTab(B, "hjem");
   await B.evaluate(() => window.scrollTo(0, 0));
