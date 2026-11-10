@@ -38,6 +38,7 @@ const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromi
 const errors = [];
 async function phone(name, scheme) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: scheme, deviceScaleFactor: 1 });
+  await ctx.addInitScript(() => { try { if (localStorage.getItem("pp-intro") == null) localStorage.setItem("pp-intro", "false"); } catch (e) {} });
   const p = await ctx.newPage();
   p.on("pageerror", (e) => errors.push(name + ": " + e.message));
   p.on("console", (m) => { if (m.type() === "error") errors.push(name + " console: " + m.text()); });
@@ -524,6 +525,32 @@ try {
   await A.waitForSelector("#keytext");
   await shot(A, "e8-innstillinger");
   log("innstillinger med husnøkkel og varsler");
+
+  // --- intro: skrus på i innstillingene, vises når appen åpnes, og forsvinner av seg selv ---
+  await A.check("#set-intro");
+  await A.waitForTimeout(150);
+  await A.reload();
+  await A.waitForSelector("#intro.run .in-walk .dog", { timeout: 4000 });
+  const hi = (await A.textContent("#intro .in-hi")).trim();
+  if (!/^(God morgen|Hei|God kveld|God natt), Mads!$/.test(hi)) throw new Error("hilsen: " + hi);
+  await A.waitForTimeout(1300);
+  await shot(A, "i1-intro");
+  await A.waitForSelector("#intro", { state: "detached", timeout: 4000 });
+  if (!(await A.$("#v-hjem:not([hidden])"))) throw new Error("ikke på startsiden etter introen");
+  await A.reload();
+  await A.waitForSelector("#intro.run");
+  await A.click("#intro");
+  await A.waitForSelector("#intro", { state: "detached", timeout: 1500 });
+  await A.goto(BASE + "/#pling");
+  await A.waitForSelector("#app:not([hidden])");
+  if (await A.$("#intro")) throw new Error("introen skal ikke vises når appen åpnes fra et varsel");
+  await A.click(".duo");
+  await A.uncheck("#set-intro");
+  await A.waitForTimeout(150);
+  await A.reload();
+  await A.waitForSelector("#app:not([hidden])");
+  if (await A.$("#intro")) throw new Error("introen er skrudd av, men vises");
+  log("introen: Pølsa trasker inn og sier «" + hi + "», forsvinner av seg selv eller med et trykk, vises ikke fra varsler, og kan skrus av");
 } catch (e) {
   console.error("FEIL:", e.message);
   process.exitCode = 1;

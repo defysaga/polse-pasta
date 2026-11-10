@@ -116,7 +116,7 @@ const KEY_WORDS = ['polse', 'pasta', 'taco', 'sennep', 'ketchup', 'gnocchi', 'pe
 
 /* ---------- the dachshund ---------- */
 function dog(v, live) {
-  const closed = v === 'natt', happy = v === 'klem' || v === 'kyss';
+  const closed = v === 'natt', happy = v === 'klem' || v === 'kyss' || v === 'intro';
   const eye = closed
     ? '<path d="M215 43q5 4 10 0" fill="none" stroke="var(--dog-nose)" stroke-width="2.6" stroke-linecap="round"/>'
     : happy
@@ -168,12 +168,12 @@ function dog(v, live) {
   return '<svg class="dog' + (live ? ' live' : '') + '" viewBox="0 -16 284 164" aria-hidden="true" focusable="false">'
     + '<ellipse cx="142" cy="140" rx="104" ry="6" fill="var(--shadow)"/>'
     + back + tail
-    + '<rect x="76" y="94" width="17" height="44" rx="8.5" fill="var(--dog-dark)"/>'
-    + '<rect x="187" y="94" width="17" height="44" rx="8.5" fill="var(--dog-dark)"/>'
+    + '<rect class="lg l2" x="76" y="94" width="17" height="44" rx="8.5" fill="var(--dog-dark)"/>'
+    + '<rect class="lg l1" x="187" y="94" width="17" height="44" rx="8.5" fill="var(--dog-dark)"/>'
     + '<rect x="52" y="66" width="150" height="48" rx="24" fill="var(--dog)"/>'
     + '<ellipse cx="128" cy="106" rx="62" ry="6" fill="var(--dog-light)" opacity=".55"/>'
-    + '<rect x="60" y="96" width="18" height="42" rx="9" fill="var(--dog)"/>'
-    + '<rect x="171" y="96" width="18" height="42" rx="9" fill="var(--dog)"/>'
+    + '<rect class="lg l1" x="60" y="96" width="18" height="42" rx="9" fill="var(--dog)"/>'
+    + '<rect class="lg l2" x="171" y="96" width="18" height="42" rx="9" fill="var(--dog)"/>'
     + '<path d="M176 74Q196 62 200 40L226 52Q222 84 200 102Z" fill="var(--dog)"/>'
     + '<g class="head">'
     +   '<circle cx="214" cy="48" r="22" fill="var(--dog)"/>'
@@ -781,6 +781,56 @@ function pushSheet() {
     + '<button class="textbtn" type="button" data-act="close-sheet">Ikke nå</button></div>';
 }
 
+/* ---------- Intro: Pølsa trasker inn til matskåla når appen åpnes ---------- */
+let introT = null;
+const introOn = () => LS.get('pp-intro', true) !== false;
+function greeting() {
+  const h = new Date().getHours();
+  const g = h < 5 ? 'God natt' : h < 10 ? 'God morgen' : h < 17 ? 'Hei' : h < 23 ? 'God kveld' : 'God natt';
+  return S.me && S.members[S.me] ? g + ', ' + nm(S.me) + '!' : 'Voff, og velkommen!';
+}
+function playIntro(force) {
+  let el = $('#intro');
+  if (!force && !introOn()) { if (el) el.remove(); return; }
+  if (el) el.remove(); // start på nytt, også midt i en intro
+  el = document.createElement('div');
+  el.id = 'intro'; el.className = 'intro run'; el.setAttribute('aria-hidden', 'true');
+  let n = 0;
+  const title = [...'Pølse & Pasta'].map(c => c === ' ' ? ' ' : '<span class="ch' + (c === '&' ? ' amp' : '') + '" style="--i:' + (n++) + '">' + esc(c) + '</span>').join('');
+  const heart = (x, d, sc) => '<svg class="in-heart" style="left:' + x + '%;--d:' + d + 's;--s:' + sc + '" viewBox="0 0 24 24"><path d="' + HEART_D + '" fill="var(--ketchup)"/></svg>';
+  el.innerHTML = '<div class="in-glow"></div><div class="in-stage">'
+    + '<div class="in-scene">'
+    +   '<div class="in-floor gingham"></div>'
+    +   '<div class="in-walk"><div class="in-bounce">' + dog('intro', true) + '</div></div>'
+    +   '<svg class="in-bowl" viewBox="0 -16 284 164" focusable="false"><g transform="translate(255 140) scale(1.3) translate(-255 -140)">'
+    +     '<g class="in-steam" fill="none" stroke="var(--ink-2)" stroke-width="2.6" stroke-linecap="round"><path d="M247 98q-5-7 0-13t0-13"/><path d="M264 96q-5-7 0-13t0-13"/></g>'
+    +     '<g class="in-bowl-g">'
+    +       '<path d="M231 121q2-14 24-14t24 14z" fill="var(--mustard)"/>'
+    +       '<path d="M237 118q4-6 8 0t8 0t8 0t8 0" fill="none" stroke="var(--on-mustard)" stroke-opacity=".3" stroke-width="2" stroke-linecap="round"/>'
+    +       '<g transform="rotate(-9 256 106)"><rect x="240" y="100" width="32" height="11" rx="5.5" fill="var(--sausage)"/><path d="M244 105.5l4-2.4 4 2.4 4-2.4 4 2.4 4-2.4 4 2.4" fill="none" stroke="var(--mustard)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>'
+    +       '<path d="M226 120h58q-3 20-29 20t-29-20z" fill="var(--ketchup)"/>'
+    +       '<rect x="224" y="117" width="62" height="6" rx="3" fill="var(--ketchup)"/>'
+    +       '<path d="M235 126q5 8 15 9" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2.4" stroke-linecap="round"/>'
+    +     '</g></g></svg>'
+    +   '<div class="in-voff">Voff!</div>'
+    +   heart(86, 1.2, 1) + heart(97, 1.5, .75) + heart(90, 1.85, .6)
+    + '</div>'
+    + '<h1 class="in-title">' + title + '</h1>'
+    + '<p class="in-hi">' + esc(greeting()) + '</p>'
+    + '</div>';
+  document.body.appendChild(el);
+  const done = () => {
+    if (!el.isConnected || el.classList.contains('out')) return;
+    clearTimeout(introT);
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 450);
+  };
+  el.addEventListener('click', done);
+  clearTimeout(introT);
+  const still = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  introT = setTimeout(done, still ? 1400 : 2700);
+}
+
 /* ---------- sheets ---------- */
 function openSheet(html, state, label) {
   S.sheet = state;
@@ -840,6 +890,8 @@ function settingsSheet() {
     + (S.push === 'off' ? '<button class="btn sm primary" data-act="push-on">Slå på varsler</button>' : '')
     + (S.push === 'install' ? '<button class="btn sm" data-act="install-help">Slik legger du den på hjemskjermen</button>' : '')
     + '</div></div>'
+    + '<div class="set-sec"><h3>Intro</h3><label class="toggle"><input type="checkbox" id="set-intro"' + (introOn() ? ' checked' : '') + '><span>Pølsa sier hei når appen åpnes</span></label>'
+    + '<div class="set-row"><button class="btn sm" data-act="intro-play">Se introen</button></div></div>'
     + '<div class="set-sec"><h3>Husnøkkel</h3><div class="keybox"><code id="keytext">' + esc(S.key) + '</code><button class="btn sm" data-act="copy-key">Kopier</button></div>'
     + '<p class="small">Den andre trenger denne for å komme inn. Del den bare med hverandre.</p>'
     + '<div class="set-row"><button class="btn sm" data-act="invite">Del appen</button></div></div>'
@@ -2331,6 +2383,7 @@ const ACT = {
   },
   'pick-pling': b => openSheet(plingSheet(b.dataset.k), { type: 'pling', kind: b.dataset.k }, PLINGS[b.dataset.k].title),
   'settings': () => openSheet(settingsSheet(), { type: 'settings' }, 'Innstillinger'),
+  'intro-play': () => { closeSheet(); playIntro(true); },
   'invite': () => openSheet(inviteSheet(), { type: 'invite' }, 'Del appen'),
   'install-help': () => openSheet(installSheet(), { type: 'install' }, 'Hjemskjerm'),
   'share-invite': async () => { try { await navigator.share({ title: 'Pølse & Pasta', text: inviteText() }); } catch (e) {} },
@@ -2753,6 +2806,9 @@ document.addEventListener('change', async e => {
   } else if (t.dataset && t.dataset.impOn != null && S.sheet && S.sheet.type === 'import') {
     const it = S.sheet.items[+t.dataset.impOn];
     if (it) { it.on = t.checked; renderImportFoot(); }
+  } else if (t.id === 'set-intro') {
+    LS.set('pp-intro', t.checked);
+    toast(t.checked ? 'Pølsa sier hei neste gang du åpner appen' : 'Introen er skrudd av på denne telefonen');
   } else if (t.id === 'imp-pling' && S.sheet) {
     S.sheet.pling = t.checked;
   }
@@ -2774,7 +2830,9 @@ let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
   if (S.stage !== 'app') return;
-  if (hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000 && !S.sheet && !S.game && S.tab !== 'hjem') { S.tab = 'hjem'; render(); quietScrollTo(0); }
+  const away = hiddenAt && Date.now() - hiddenAt > 10 * 60 * 1000;
+  if (away && !S.game) playIntro();
+  if (away && !S.sheet && !S.game && S.tab !== 'hjem') { S.tab = 'hjem'; render(); quietScrollTo(0); }
   sync(); checkPush().then(render);
 });
 window.addEventListener('online', () => { S.online = true; if (S.stage === 'app') sync(); });
@@ -2793,5 +2851,7 @@ if ('serviceWorker' in navigator) {
 /* ---------- start ---------- */
 $('#logo').innerHTML = dog('hei');
 derive();
+// Åpnes appen fra et varsel, går vi rett til plingen
+if (/pling|polsa/.test(location.hash)) { const el = $('#intro'); if (el) el.remove(); } else playIntro();
 startFlow();
 })();

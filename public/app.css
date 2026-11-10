@@ -8,7 +8,7 @@
   --check:rgba(214,63,43,.30);
   --tile-1:#F8D7CF; --tile-2:#F7E6B8; --tile-3:#CBE5D5; --tile-4:#D2E1F3; --tile-5:#E6D6EB;
   --dog:#B4683A; --dog-dark:#7B4023; --dog-light:#E4AC7C; --dog-nose:#2A1910; --dog-shine:#FFFFFF;
-  --blush:#EE8B8B; --hat:#FFFFFF; --hat-line:#CFD3CC; --tongue:#E8707F; --teddy:#C99A62;
+  --blush:#EE8B8B; --hat:#FFFFFF; --hat-line:#CFD3CC; --tongue:#E8707F; --teddy:#C99A62; --sausage:#C4502E;
   --shadow:rgba(27,40,34,.13); --scrim:rgba(14,22,18,.48);
   --f-display:"Bagel Fat One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
   --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -23,7 +23,7 @@
     --check:rgba(240,98,77,.26);
     --tile-1:#3B2723; --tile-2:#383020; --tile-3:#1E372A; --tile-4:#1F2B3B; --tile-5:#312537;
     --dog:#C27A4A; --dog-dark:#8E4E2C; --dog-light:#E6B486; --dog-nose:#1F120B; --dog-shine:#FFFFFF;
-    --blush:#E88A8A; --hat:#F3F3EE; --hat-line:#B9BDB5; --tongue:#E8808D; --teddy:#C49460;
+    --blush:#E88A8A; --hat:#F3F3EE; --hat-line:#B9BDB5; --tongue:#E8808D; --teddy:#C49460; --sausage:#B9472A;
     --shadow:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.62); --sky:#86A8EC;
     color-scheme:dark;
   }
@@ -34,7 +34,7 @@
   --check:rgba(240,98,77,.26);
   --tile-1:#3B2723; --tile-2:#383020; --tile-3:#1E372A; --tile-4:#1F2B3B; --tile-5:#312537;
   --dog:#C27A4A; --dog-dark:#8E4E2C; --dog-light:#E6B486; --dog-nose:#1F120B; --dog-shine:#FFFFFF;
-  --blush:#E88A8A; --hat:#F3F3EE; --hat-line:#B9BDB5; --tongue:#E8808D; --teddy:#C49460;
+  --blush:#E88A8A; --hat:#F3F3EE; --hat-line:#B9BDB5; --tongue:#E8808D; --teddy:#C49460; --sausage:#B9472A;
   --shadow:rgba(0,0,0,.35); --scrim:rgba(0,0,0,.62); --sky:#86A8EC;
   color-scheme:dark;
 }
@@ -629,3 +629,55 @@ details.more summary i{font-weight:500;font-style:normal;opacity:.8}
 .imp-main small{font-size:12px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #imp-foot{display:flex;flex-direction:column;gap:10px}
 .small.found{color:var(--basil);font-weight:600}
+
+/* ---------- Intro: Pølsa trasker inn til matskåla ----------
+   Ligger i index.html fra start, så appen ikke blinker frem før introen. Forsvinner av seg selv
+   etter 5 sekunder selv om skriptet ikke skulle kjøre. */
+.intro{position:fixed;inset:0;z-index:60;background:var(--bg);display:grid;place-items:center;overflow:hidden;cursor:pointer;
+  padding:env(safe-area-inset-top,0px) 16px env(safe-area-inset-bottom,0px);animation:in-failsafe 0s linear 5s forwards;
+  transition:opacity .4s ease,transform .45s cubic-bezier(.5,0,.75,0)}
+.intro.out{opacity:0;transform:translateY(-28px);pointer-events:none}
+@keyframes in-failsafe{to{visibility:hidden;pointer-events:none}}
+.in-glow{position:absolute;left:50%;top:44%;width:140vmin;height:140vmin;transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle,var(--tile-2) 0,transparent 62%);opacity:.9;pointer-events:none}
+.in-stage{position:relative;display:flex;flex-direction:column;align-items:center;width:100%;margin-top:-6vh}
+.in-scene{position:relative;width:min(72vw,300px)}
+.in-scene .dog{width:100%}
+.in-floor{position:absolute;left:calc(50% - 50vw);width:100vw;top:92.5%;height:12px;border-radius:0}
+.in-bowl{position:absolute;left:0;top:0;width:100%;height:auto;overflow:visible}
+.in-bowl-g,.in-steam{transform-box:view-box;transform-origin:255px 140px}
+.in-steam{opacity:.45}
+.in-voff{position:absolute;left:48%;top:-30%;font-family:var(--f-display);font-size:clamp(22px,7vw,30px);line-height:1;color:var(--ketchup);
+  background:var(--surface);padding:9px 16px 10px;border-radius:18px;box-shadow:0 6px 18px var(--shadow);transform-origin:70% 120%;opacity:0}
+.in-voff::after{content:"";position:absolute;right:22%;bottom:-9px;border:10px solid transparent;border-top-color:var(--surface);border-bottom:0}
+.in-heart{position:absolute;top:6%;width:calc(26px * var(--s));height:auto;opacity:0}
+.in-title{margin:30px 0 0;font-family:var(--f-display);font-weight:400;font-size:clamp(40px,12.5vw,58px);line-height:1;color:var(--ketchup);white-space:nowrap;letter-spacing:.01em}
+.in-title .ch{display:inline-block}
+.in-title .amp{color:var(--mustard)}
+.in-hi{margin:14px 0 0;font-size:18px;font-weight:700;color:var(--ink-2)}
+@media (prefers-reduced-motion: no-preference){
+  .intro.run .in-walk{animation:in-walk 1.05s cubic-bezier(.3,.7,.35,1) .1s both}
+  .intro.run .in-bounce{animation:in-bounce .19s ease-in-out .1s 5 alternate}
+  .intro.run .in-bounce .dog{animation:in-hop .5s cubic-bezier(.3,0,.4,1) 1.12s}
+  .intro.run .lg{transform-box:fill-box;transform-origin:50% 12%}
+  .intro.run .l1{animation:in-legA .19s ease-in-out .1s 5 alternate}
+  .intro.run .l2{animation:in-legB .19s ease-in-out .1s 5 alternate}
+  .intro.run .in-bowl-g{animation:in-pop .45s cubic-bezier(.2,1.5,.4,1) both}
+  .intro.run .in-steam{animation:in-steam 1.6s ease-in-out .3s infinite}
+  .intro.run .in-voff{animation:in-voff .5s cubic-bezier(.2,1.6,.4,1) 1.05s both}
+  .intro.run .in-heart{animation:in-heart 1.3s ease-out var(--d) both}
+  .intro.run .in-title .ch{animation:in-drop .55s cubic-bezier(.2,1.5,.45,1) calc(1s + var(--i) * 45ms) both}
+  .intro.run .in-hi{animation:in-fade .5s ease-out 1.65s both}
+}
+@media (prefers-reduced-motion: reduce){.intro .in-voff{opacity:1}}
+@keyframes in-walk{from{transform:translateX(calc(-50vw - 110%))}to{transform:none}}
+@keyframes in-bounce{from{transform:translateY(0)}to{transform:translateY(-3.5%)}}
+@keyframes in-legA{from{transform:rotate(24deg)}to{transform:rotate(-24deg)}}
+@keyframes in-legB{from{transform:rotate(-24deg)}to{transform:rotate(24deg)}}
+@keyframes in-pop{from{transform:scale(0)}to{transform:none}}
+@keyframes in-hop{0%,100%{transform:none}35%{transform:translateY(-7%) rotate(-2deg)}70%{transform:translateY(0)}85%{transform:translateY(-1.5%)}}
+@keyframes in-steam{0%,100%{transform:translateY(0);opacity:.15}50%{transform:translateY(-6px);opacity:.5}}
+@keyframes in-voff{from{opacity:0;transform:scale(.3) rotate(-10deg)}to{opacity:1;transform:rotate(-4deg)}}
+@keyframes in-heart{0%{opacity:0;transform:translateY(10px) scale(.4)}25%{opacity:1;transform:translateY(-6px) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(.9)}}
+@keyframes in-drop{from{opacity:0;transform:translateY(-46px) scale(.6)}to{opacity:1;transform:none}}
+@keyframes in-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
