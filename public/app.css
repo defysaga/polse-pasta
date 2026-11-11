@@ -681,3 +681,12 @@ details.more summary i{font-weight:500;font-style:normal;opacity:.8}
 @keyframes in-heart{0%{opacity:0;transform:translateY(10px) scale(.4)}25%{opacity:1;transform:translateY(-6px) scale(1)}100%{opacity:0;transform:translateY(-60px) scale(.9)}}
 @keyframes in-drop{from{opacity:0;transform:translateY(-46px) scale(.6)}to{opacity:1;transform:none}}
 @keyframes in-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* Vanlige emojier i stedet for Pølsa (valg i innstillingene) */
+.pemo{display:inline-grid;place-items:center;line-height:1;font-style:normal;overflow:visible}
+.pv .pemo{width:30px;height:30px}
+.seg-ico span{display:flex;align-items:center;justify-content:center;gap:4px}
+.seg-ico .pe{width:22px;height:22px}
+.seg-ico .pe + .pe{margin-left:-6px;margin-right:4px}
+.pl-style{margin:10px 0 0;text-align:center}
+.pl-style .linkbtn{font-size:13px}

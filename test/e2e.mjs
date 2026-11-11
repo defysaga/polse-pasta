@@ -526,7 +526,24 @@ try {
   await shot(A, "e8-innstillinger");
   log("innstillinger med husnøkkel og varsler");
 
+  // --- Pølsa eller vanlige emojier på plingene, valgt på hver telefon ---
+  await A.check('input[name="set-icons"][value="emoji"]');
+  await A.waitForTimeout(150);
+  await A.click("#sheet .x");
+  await goTab(A, "hjem");
+  if (!/🧸/.test(await A.textContent("#pl-main")) || !(await A.$("#pl-log .pd-emo .pemo"))) throw new Error("emojiene vises ikke");
+  if (await A.$("#pl-main .pv svg.pe")) throw new Error("Pølsa er fortsatt på knappene");
+  if ((await A.$$("#pl-main .kk-big svg.dog")).length !== 2) throw new Error("Klem og Kyss skal være Pølsa");
+  await A.evaluate(() => window.scrollTo(0, 0));
+  await shot(A, "k6-emojier");
+  if (!(await B.$("#pl-main .pv svg.pe"))) throw new Error("valget skal bare gjelde den ene telefonen");
+  if (!(await A.$("#pl-more[open]"))) await A.click("#pl-more summary");
+  await A.click('#pl-style [data-act="icon-style"]');
+  await A.waitForSelector("#pl-main .pv svg.pe");
+  log("plingene kan vise vanlige emojier i stedet for Pølsa på én telefon (Klem og Kyss er fortsatt Pølsa), og byttes tilbake under «Flere plinger»");
+
   // --- intro: skrus på i innstillingene, vises når appen åpnes, og forsvinner av seg selv ---
+  await A.click(".duo");
   await A.check("#set-intro");
   await A.waitForTimeout(150);
   await A.reload();

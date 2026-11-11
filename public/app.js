@@ -111,7 +111,21 @@ const KLEM_VARS = ['bamseklem', 'langklem', 'trosteklem', 'savner'];
 const KYSS_VARS = ['slengkyss', 'kinnkyss', 'nesekyss', 'elsker'];
 const PLING_MORE = ['hei', 'sulten', 'klar', 'handle', 'natt', 'egen'];
 const ETA = [10, 20, 30]; // minutter, knappene ved «På vei hjem»
-const pe = (k, size) => PE.face(PLINGS[k] ? k : 'hei', size);
+// Ikonene på plingene: Pølsa-emojier eller vanlige emojier. Velges på hver telefon. Klem og Kyss er alltid Pølsa.
+const EMOJI = { klem: '🤗', kyss: '💋', bamseklem: '🧸', langklem: '🫂', trosteklem: '💛', savner: '🥺', slengkyss: '😘', kinnkyss: '😚',
+  nesekyss: '🐶', elsker: '❤️', hei: '👋', sulten: '🍝', klar: '🍽️', handle: '🛒', natt: '🌙', egen: '💬', pavei: '🏡',
+  oppskrift: '📌', rating: '⭐', quiz: '❓', spill: '🏆', restaurant: '📍' };
+const iconStyle = () => LS.get('pp-icons', 'polsa') === 'emoji' ? 'emoji' : 'polsa';
+const pe = (k, size, style) => (style || iconStyle()) === 'emoji'
+  ? '<span class="pe pemo" style="font-size:' + Math.round(size * .78) + 'px" aria-hidden="true">' + (EMOJI[k] || EMOJI.hei) + '</span>'
+  : PE.face(PLINGS[k] ? k : 'hei', size);
+function setIconStyle(v) {
+  LS.set('pp-icons', v === 'emoji' ? 'emoji' : 'polsa');
+  delete $('#pl-main').dataset.built;
+  renderHome();
+}
+const styleSwitch = () => '<p class="pl-style" id="pl-style"><button class="linkbtn" data-act="icon-style" data-k="' + (iconStyle() === 'emoji' ? 'polsa' : 'emoji') + '">'
+  + (iconStyle() === 'emoji' ? 'Vis Pølsa i stedet for emojier' : 'Vis vanlige emojier i stedet for Pølsa') + '</button></p>';
 const KEY_WORDS = ['polse', 'pasta', 'taco', 'sennep', 'ketchup', 'gnocchi', 'pesto', 'lasagne', 'burrito', 'ramen', 'vaffel', 'kanel', 'tomat', 'basilikum', 'parmesan', 'chili', 'risotto', 'falafel', 'pizza', 'nachos', 'kebab', 'sushi', 'lompe', 'brunost'];
 
 /* ---------- the dachshund ---------- */
@@ -648,6 +662,8 @@ function renderPlingButtons() {
       + '<div class="pavei"><button class="pv pv-home" data-act="send-pling" data-k="pavei">' + pe('pavei', 34) + '<span>På vei hjem</span></button>'
       + ETA.map(m => '<button class="eta" data-act="send-pling" data-k="pavei" data-min="' + m + '" aria-label="På vei hjem, hjemme om ca. ' + m + ' minutter"><b>' + m + '</b>min</button>').join('') + '</div>';
     $('#pl-grid').innerHTML = PLING_MORE.map(k => plingBtn(k)).join('');
+    const old = $('#pl-style'); if (old) old.remove();
+    $('#pl-grid').insertAdjacentHTML('afterend', styleSwitch());
     main.dataset.built = '1';
   }
 }
@@ -890,6 +906,9 @@ function settingsSheet() {
     + (S.push === 'off' ? '<button class="btn sm primary" data-act="push-on">Slå på varsler</button>' : '')
     + (S.push === 'install' ? '<button class="btn sm" data-act="install-help">Slik legger du den på hjemskjermen</button>' : '')
     + '</div></div>'
+    + '<div class="set-sec"><h3>Ikoner på plingene</h3><div class="seg seg-ico" role="radiogroup" aria-label="Ikoner på plingene">'
+    + [['polsa', 'Pølsa'], ['emoji', 'Emojier']].map(([k, l]) => '<label><input type="radio" name="set-icons" value="' + k + '"' + (iconStyle() === k ? ' checked' : '') + '><span>' + pe('klem', 22, k) + pe('kyss', 22, k) + l + '</span></label>').join('')
+    + '</div><p class="small">Gjelder bare denne telefonen. Klem og Kyss er alltid Pølsa.</p></div>'
     + '<div class="set-sec"><h3>Intro</h3><label class="toggle"><input type="checkbox" id="set-intro"' + (introOn() ? ' checked' : '') + '><span>Pølsa sier hei når appen åpnes</span></label>'
     + '<div class="set-row"><button class="btn sm" data-act="intro-play">Se introen</button></div></div>'
     + '<div class="set-sec"><h3>Husnøkkel</h3><div class="keybox"><code id="keytext">' + esc(S.key) + '</code><button class="btn sm" data-act="copy-key">Kopier</button></div>'
@@ -2384,6 +2403,7 @@ const ACT = {
   'pick-pling': b => openSheet(plingSheet(b.dataset.k), { type: 'pling', kind: b.dataset.k }, PLINGS[b.dataset.k].title),
   'settings': () => openSheet(settingsSheet(), { type: 'settings' }, 'Innstillinger'),
   'intro-play': () => { closeSheet(); playIntro(true); },
+  'icon-style': b => { setIconStyle(b.dataset.k); toast(b.dataset.k === 'emoji' ? 'Plingene viser vanlige emojier på denne telefonen' : 'Plingene viser Pølsa igjen'); },
   'invite': () => openSheet(inviteSheet(), { type: 'invite' }, 'Del appen'),
   'install-help': () => openSheet(installSheet(), { type: 'install' }, 'Hjemskjerm'),
   'share-invite': async () => { try { await navigator.share({ title: 'Pølse & Pasta', text: inviteText() }); } catch (e) {} },
@@ -2806,6 +2826,9 @@ document.addEventListener('change', async e => {
   } else if (t.dataset && t.dataset.impOn != null && S.sheet && S.sheet.type === 'import') {
     const it = S.sheet.items[+t.dataset.impOn];
     if (it) { it.on = t.checked; renderImportFoot(); }
+  } else if (t.name === 'set-icons') {
+    setIconStyle(t.value);
+    toast(t.value === 'emoji' ? 'Plingene viser vanlige emojier på denne telefonen' : 'Plingene viser Pølsa igjen');
   } else if (t.id === 'set-intro') {
     LS.set('pp-intro', t.checked);
     toast(t.checked ? 'Pølsa sier hei neste gang du åpner appen' : 'Introen er skrudd av på denne telefonen');
